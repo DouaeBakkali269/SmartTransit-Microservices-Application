@@ -57,6 +57,54 @@ Integration tests start the Spring context on a random port and verify REST flow
 - Containerize services with Docker and orchestrate with docker-compose or Kubernetes.
 - Add CI (GitHub Actions) to run build/test and publish images.
 
+## Quickstart: Discovery + Gateway (local)
+The repository now includes two new modules:
+
+- `discovery-service` — a Eureka server (port 8761).
+- `gateway-service` — a Spring Cloud Gateway (port 8080) configured to use service discovery and a sample circuit-breaker fallback endpoint.
+
+Assumptions:
+- All services use Spring Boot 3.1.6 (Java 17) in this repo.
+- We used Spring Cloud 2023.0.5 for compatibility with Boot 3.1.6. If you manage dependencies centrally, adjust the BOM version as needed.
+
+Run order (PowerShell):
+
+```powershell
+cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/discovery-service'
+mvn -DskipTests package
+mvn spring-boot:run
+
+# in a new shell
+cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/gateway-service'
+mvn -DskipTests package
+mvn spring-boot:run
+
+# in other shells start the microservices (they will register to Eureka)
+cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/user-service'
+mvn -DskipTests spring-boot:run
+
+cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/auth-service'
+mvn -DskipTests spring-boot:run
+
+# etc. for booking-service, trip-service, route-service, vehicle-service
+```
+
+Test the discovery UI: open http://localhost:8761/ to see registered instances.
+
+Test routing through the gateway (example):
+- If `user-service` registers as `USER-SERVICE`, you can call the gateway at:
+	http://localhost:8080/user-service/api/users (gateway will use the discovery locator to forward to the service)
+
+Circuit breaker (fallback) example:
+- The gateway contains a `/fallback` endpoint used by route filters as a fallback URI when upstream calls fail.
+- To exercise the circuit breaker, stop a backend service and call its route through the gateway; when failures exceed thresholds the configured fallback will be returned.
+
+Next steps / hardening suggestions:
+- Add health checks and readiness probes for container orchestration.
+- Secure the gateway and discovery server in prod (TLS, authentication between services).
+- Externalize configuration (Spring Cloud Config or Kubernetes secrets) and add logging/metrics exporters.
+
+
 ## Contributing
 - Implement consistent DTOs and service contracts and add tests.
 - Keep one commit per logical change and include unit + integration tests.
