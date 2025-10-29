@@ -1,35 +1,36 @@
-# Smart-Transit — Urban Transport Microservices (Backend skeletons)
 
-Concise project README generated from the provided project report. This repository contains lightweight Spring Boot (Maven) backend service skeletons for an urban transport microservices system.
+# Smart-Transit — Urban Mobility Microservices
 
-## Purpose
-This workspace provides a minimal, consistent starting point for backend services in the Smart-Transit system. Each service includes a tiny Spring Boot app, a controller with a health endpoint and a simple placeholder API, and a Maven `pom.xml`.
+Smart-Transit is an extensible microservices platform for urban mobility and public transport management. The repository contains backend service implementations and skeletons intended to model a production-like microservices architecture for routing, vehicle management, trips, booking, user profiles, and authentication.
 
-## Architecture (high level)
-- Microservices (each service is an independent Spring Boot app)
-- Services communicate over HTTP/REST (placeholders here)
-- Embedded H2 is configured as a dev in-memory DB dependency in each service pom but not used by the controller skeletons
+## Project goals
+- Provide modular, independently deployable services for urban transit domains (users, routes, vehicles, trips, bookings, auth).
+- Demonstrate standard microservice patterns: REST APIs, persistence (JPA), DTO mapping, validation, pagination, partial updates, and automated tests.
+- Provide a starting point for integration (API gateway, service discovery), CI/CD, and containerized deployment.
 
-## Services included
-- `auth-service`  — authentication / token management (skeleton)
-- `user-service`  — passenger and user profile management (skeleton)
-- `route-service` — routes and stops (skeleton)
-- `vehicle-service` — vehicles and real-time vehicle metadata (skeleton)
-- `trip-service`   — trips, schedules, and telemetry (skeleton)
-- `booking-service` — ride bookings / reservations (skeleton)
+## High-level architecture
+- Services: each backend service is a standalone Spring Boot (Maven) application. Services communicate via HTTP/REST in this scaffold.
+- Persistence: services use JPA (Hibernate). By default the projects are configured with H2 in-memory for development and tests; swap to PostgreSQL/MySQL for production.
+- Mapping & validation: DTOs use MapStruct for mapping and Jakarta Validation for request validation.
+- Testing: unit tests for service logic, integration tests that start the Spring context and exercise REST endpoints.
 
-Each service lives in its own folder at the repository root and uses package `com.smarttransit.<service>`.
+## Services and responsibilities
+- auth-service — authentication and token lifecycle (login, token validation). Minimal skeleton provided.
+- user-service — user and passenger profile management (full CRUD implemented, pagination, search and PATCH partial updates, tests included).
+- route-service — route and stop management (skeleton).
+- vehicle-service — vehicle metadata and telemetry (skeleton).
+- trip-service — trips, schedules, and trip lifecycle (skeleton).
+- booking-service — booking / reservation management (skeleton).
 
-## Basic APIs (skeleton)
-Each service exposes a minimal controller with endpoints:
-- `GET /actuator/health` (Spring Boot actuator, where enabled)
-- `GET /api/<resource>/ping` — lightweight health/ping returning service name and simple JSON
+Each service lives in its own top-level folder (e.g. `user-service`) and follows the same Maven/Spring Boot layout.
 
-Example (user-service):
-GET /api/users/ping -> { "service":"user-service", "status":"ok" }
+## API conventions
+- Endpoints are versionless REST endpoints under `/api/<resource>` (e.g. `/api/users`).
+- List endpoints support pagination via `page` and `size` query params and simple search via `search`.
+- Partial updates are supported via `PATCH /api/<resource>/{id}` (simple JSON map-based updates in the scaffold).
 
-## How to build & run (per-service)
-Open a terminal and run inside a service folder (e.g. `user-service`):
+## How to build and run a service locally
+From PowerShell (example: user-service):
 
 ```powershell
 cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit/user-service'
@@ -37,20 +38,26 @@ mvn clean package
 mvn spring-boot:run
 ```
 
-Each service has a different default port configured in `src/main/resources/application.properties`.
+Default dev ports are configured in each service `src/main/resources/application.properties`.
 
-## Next steps / suggestions
-- Replace controller placeholders with real DTOs, services, and repositories.
-- Add API definitions (OpenAPI / Swagger) and an API gateway.
-- Add inter-service communication patterns (REST client, message broker).
-- Add CI pipeline and integration tests.
+## Tests
+- Run unit and integration tests with:
 
-## Notes
-- These skeletons are intentionally minimal. They provide a repeatable folder/package structure and example endpoints so you can quickly implement business logic.
+```powershell
+mvn test
+```
 
----
-Generated from the project report you provided (concise version). If you want, I can:
-- Wire these to a shared parent pom
-- Add Dockerfiles and docker-compose
-- Add sample DTOs and repository CRUD methods
-Tell me which of the above you'd like next.
+Integration tests start the Spring context on a random port and verify REST flows.
+
+## Recommended next steps for production readiness
+- Add an API Gateway (Spring Cloud Gateway) and centralize routing.
+- Add service discovery (Eureka or Consul) and circuit breaker patterns.
+- Replace in-memory DB with a managed database and add Flyway/Liquibase migrations.
+- Add authentication (JWT) and RBAC for protected endpoints.
+- Containerize services with Docker and orchestrate with docker-compose or Kubernetes.
+- Add CI (GitHub Actions) to run build/test and publish images.
+
+## Contributing
+- Implement consistent DTOs and service contracts and add tests.
+- Keep one commit per logical change and include unit + integration tests.
+
