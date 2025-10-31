@@ -1,26 +1,57 @@
 
 # Smart-Transit — Urban Mobility Microservices
 
-Smart-Transit is an extensible microservices platform for urban mobility and public transport management. The repository contains backend service implementations and skeletons intended to model a production-like microservices architecture for routing, vehicle management, trips, booking, user profiles, and authentication.
+Smart-Transit is an extensible microservices platform for urban mobility and public transport management. The repository contains backend service implementations and skeletons intended to model a production-like microservices architecture for routing, vehicle management, trips, ticketing, subscriptions, payments, geolocation tracking, notifications, user profiles, and authentication.
 
 ## Project goals
-- Provide modular, independently deployable services for urban transit domains (users, routes, vehicles, trips, bookings, auth).
+- Provide modular, independently deployable services for urban transit domains following domain-driven design principles.
 - Demonstrate standard microservice patterns: REST APIs, persistence (JPA), DTO mapping, validation, pagination, partial updates, and automated tests.
+- Support event-driven architecture for asynchronous communication between services (planned with Kafka integration).
 - Provide a starting point for integration (API gateway, service discovery), CI/CD, and containerized deployment.
 
 ## High-level architecture
-- Services: each backend service is a standalone Spring Boot (Maven) application. Services communicate via HTTP/REST in this scaffold.
-- Persistence: services use JPA (Hibernate). By default the projects are configured with H2 in-memory for development and tests; swap to PostgreSQL/MySQL for production.
-- Mapping & validation: DTOs use MapStruct for mapping and Jakarta Validation for request validation.
-- Testing: unit tests for service logic, integration tests that start the Spring context and exercise REST endpoints.
+- **Services**: each backend service is a standalone Spring Boot (Maven) application. Services communicate via HTTP/REST for synchronous operations and will use Kafka for asynchronous event-driven communication.
+- **Persistence**: services use JPA (Hibernate). By default the projects are configured with H2 in-memory for development and tests; swap to PostgreSQL/MySQL for production.
+- **Mapping & validation**: DTOs use MapStruct for mapping and Jakarta Validation for request validation.
+- **Testing**: unit tests for service logic, integration tests that start the Spring context and exercise REST endpoints.
+- **Infrastructure**: Eureka service discovery and Spring Cloud Gateway for API routing and circuit breaking.
 
 ## Services and responsibilities
-- auth-service — authentication and token lifecycle (login, token validation). Minimal skeleton provided.
-- user-service — user and passenger profile management (full CRUD implemented, pagination, search and PATCH partial updates, tests included).
-- route-service — route and stop management (skeleton).
-- vehicle-service — vehicle metadata and telemetry (skeleton).
-- trip-service — trips, schedules, and trip lifecycle (skeleton).
-- booking-service — booking / reservation management (skeleton).
+
+### Infrastructure Services
+- **discovery-service** — Eureka service registry (port 8761) for service discovery and registration.
+- **gateway-service** — Spring Cloud Gateway (port 8080) serving as the single entry point with routing, circuit breaking, and load balancing.
+
+### Domain Services
+
+#### Core Services
+- **auth-service** (port TBD) — Manages user authentication (login, logout) and JWT token lifecycle. Validates tokens for the API Gateway and other services.
+- **user-service** (port 8082) — Manages user profiles for passengers, drivers, and administrators. Full CRUD implementation with pagination, search, and PATCH partial updates. *Reference implementation with complete test coverage.*
+
+#### Transport Management Services
+- **route-service** (port TBD) — Manages static route data: transit lines, fixed stops, and route definitions. A route represents a template (e.g., "Line 42: Downtown ↔ Airport").
+- **trip-service** (port TBD) — Manages dynamic trip instances: scheduled executions of routes with actual departure/arrival times, assigned vehicles, and real-time status updates. A trip is a specific journey on a route (e.g., "Bus 405 running Line 42 departing at 14:30").
+
+> **Why separate Route and Trip services?**
+> We split these domains to follow the **Template vs Instance** pattern:
+> - **Routes** are static, long-lived templates that define "what" and "where" (the line, stops, and general schedule).
+> - **Trips** are dynamic, time-bound instances that represent "when" and "how" (actual journeys happening with specific vehicles and times).
+>
+> This separation enables:
+> - Independent scaling: trip operations (high-frequency updates) can scale separately from route configuration (low-frequency changes).
+> - Clear bounded contexts: route planning teams work independently from operations teams managing daily trips.
+> - Better data modeling: routes focus on geographic/network data while trips focus on temporal/operational data.
+
+- **vehicle-service** (port TBD) — Manages vehicle fleet data: bus metadata, capacity, maintenance status, and assignments.
+
+#### Ticketing and Payment Services
+- **ticket-service** (port 8086) — Manages ticket lifecycle: purchase, cancellation, validation (used/unused), and history. Communicates with payment-service and publishes events for notifications. *Fully implemented with CRUD operations.*
+- **subscription-service** (port 8087) — Manages subscription plans: creation, renewal, expiration, and recurring billing. Integrates with payment-service for transactions.
+- **payment-service** (port 8089) — Processes financial transactions for tickets and subscriptions. Integrates with external payment gateways and publishes payment events (success/failure).
+
+#### Real-time and Communication Services
+- **geolocation-service** (port 8088) — Tracks real-time vehicle positions via GPS. Publishes location data continuously to Kafka for consumption by trip-service (ETA calculations) and notification-service (delay alerts).
+- **notification-service** (port 8090) — Event-driven service that sends notifications (email, SMS, push) based on events from ticket-service, subscription-service, geolocation-service, and payment-service.
 
 Each service lives in its own top-level folder (e.g. `user-service`) and follows the same Maven/Spring Boot layout.
 
@@ -49,51 +80,90 @@ mvn test
 
 Integration tests start the Spring context on a random port and verify REST flows.
 
-## Recommended next steps for production readiness
-- Add an API Gateway (Spring Cloud Gateway) and centralize routing.
-- Add service discovery (Eureka or Consul) and circuit breaker patterns.
-- Replace in-memory DB with a managed database and add Flyway/Liquibase migrations.
-- Add authentication (JWT) and RBAC for protected endpoints.
-- Containerize services with Docker and orchestrate with docker-compose or Kubernetes.
-- Add CI (GitHub Actions) to run build/test and publish images.
 
 ## Quickstart: Discovery + Gateway (local)
-The repository now includes two new modules:
 
-- `discovery-service` — a Eureka server (port 8761).
-- `gateway-service` — a Spring Cloud Gateway (port 8080) configured to use service discovery and a sample circuit-breaker fallback endpoint.
-
-Assumptions:
+### Prerequisites
 - All services use Spring Boot 3.1.6 (Java 17) in this repo.
-- We used Spring Cloud 2023.0.5 for compatibility with Boot 3.1.6. If you manage dependencies centrally, adjust the BOM version as needed.
+- Spring Cloud 2023.0.5 for compatibility with Boot 3.1.6.
 
-Run order (PowerShell):
+### Service Ports
+- **discovery-service**: 8761
+- **gateway-service**: 8080
+- **user-service**: 8082
+- **ticket-service**: 8086
+- **subscription-service**: 8087
+- **geolocation-service**: 8088
+- **payment-service**: 8089
+- **notification-service**: 8090
+- **auth-service**, **route-service**, **trip-service**, **vehicle-service**: TBD (configure in application.properties)
 
+### Run Order (PowerShell)
+
+**1. Start Discovery Service (Eureka)**
 ```powershell
-cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/discovery-service'
-mvn -DskipTests package
-mvn spring-boot:run
+cd discovery-service
+mvn -DskipTests spring-boot:run
+```
+Wait for Eureka to start, then verify at http://localhost:8761/
 
+**2. Start Gateway Service**
+```powershell
 # in a new shell
-cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/gateway-service'
-mvn -DskipTests package
-mvn spring-boot:run
-
-# in other shells start the microservices (they will register to Eureka)
-cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/user-service'
+cd gateway-service
 mvn -DskipTests spring-boot:run
-
-cd 'C:/Users/Usuario/OneDrive/Desktop/Smart-Transit-Microservices/auth-service'
-mvn -DskipTests spring-boot:run
-
-# etc. for booking-service, trip-service, route-service, vehicle-service
 ```
 
-Test the discovery UI: open http://localhost:8761/ to see registered instances.
+**3. Start Domain Services** (each in a new shell)
+```powershell
+# Core services
+cd user-service
+mvn -DskipTests spring-boot:run
 
-Test routing through the gateway (example):
-- If `user-service` registers as `USER-SERVICE`, you can call the gateway at:
-	http://localhost:8080/user-service/api/users (gateway will use the discovery locator to forward to the service)
+cd auth-service
+mvn -DskipTests spring-boot:run
+
+# Transport management
+cd route-service
+mvn -DskipTests spring-boot:run
+
+cd trip-service
+mvn -DskipTests spring-boot:run
+
+cd vehicle-service
+mvn -DskipTests spring-boot:run
+
+# Ticketing and payments
+cd ticket-service
+mvn -DskipTests spring-boot:run
+
+cd subscription-service
+mvn -DskipTests spring-boot:run
+
+cd payment-service
+mvn -DskipTests spring-boot:run
+
+# Real-time and communication
+cd geolocation-service
+mvn -DskipTests spring-boot:run
+
+cd notification-service
+mvn -DskipTests spring-boot:run
+```
+
+### Testing
+
+**Eureka Dashboard**: http://localhost:8761/ — view all registered service instances
+
+**Gateway Routing Examples** (via http://localhost:8080):
+- User management: `GET http://localhost:8080/user-service/api/users`
+- Tickets: `GET http://localhost:8080/ticket-service/api/tickets`
+- Subscriptions: `GET http://localhost:8080/subscription-service/api/subscriptions`
+- Payments: `GET http://localhost:8080/payment-service/api/payments`
+- Geolocation: `GET http://localhost:8080/geolocation-service/api/geolocations`
+- Notifications: `GET http://localhost:8080/notification-service/api/notifications`
+
+The gateway uses service discovery to automatically route requests to the appropriate microservice.
 
 Circuit breaker (fallback) example:
 - The gateway contains a `/fallback` endpoint used by route filters as a fallback URI when upstream calls fail.

@@ -12,18 +12,15 @@ import com.smarttransit.userservice.mapper.UserMapper;
 import com.smarttransit.userservice.model.User;
 import com.smarttransit.userservice.repository.UserRepository;
 import com.smarttransit.userservice.service.UserService;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserRepository repository;
     private final UserMapper mapper;
-
-    public UserServiceImpl(UserRepository repository, UserMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
 
     @Override
     public org.springframework.data.domain.Page<com.smarttransit.userservice.dto.UserDto> findAll(int page, int size, String search) {
