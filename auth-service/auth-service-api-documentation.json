@@ -1,0 +1,417 @@
+{
+  "service": {
+    "name": "Auth Service",
+    "description": "Authentication and authorization microservice for SmartTransit application",
+    "version": "1.0.0",
+    "port": 8081,
+    "baseUrl": "http://localhost:8081",
+    "database": "PostgreSQL (authdb)",
+    "eurekaRegistry": "http://localhost:8761/eureka/"
+  },
+  "features": {
+    "authentication": {
+      "description": "JWT-based authentication system",
+      "capabilities": [
+        "User registration with email validation",
+        "User login with email/password",
+        "JWT access token generation (15 minutes expiry)",
+        "JWT refresh token generation (7 days expiry)",
+        "Token validation and user details extraction",
+        "Secure logout with token revocation",
+        "Password encryption using BCrypt",
+        "Token blacklisting and revocation management"
+      ]
+    },
+    "authorization": {
+      "description": "Role-based access control",
+      "roles": ["USER", "ADMIN", "DRIVER", "OPERATOR"],
+      "defaultRole": "USER",
+      "capabilities": [
+        "Role assignment during registration",
+        "Role-based token claims",
+        "Multi-role support per user"
+      ]
+    },
+    "security": {
+      "description": "Security configurations and features",
+      "features": [
+        "BCrypt password hashing",
+        "JWT token signing with HS512 algorithm",
+        "Token expiration management",
+        "Automatic expired token cleanup (daily at 2 AM)",
+        "Token revocation on logout",
+        "User account activation status"
+      ]
+    },
+    "userManagement": {
+      "description": "Basic user management capabilities",
+      "capabilities": [
+        "User registration with validation",
+        "User profile storage (first name, last name, email)",
+        "User activation/deactivation",
+        "User lookup by ID or email",
+        "Duplicate email prevention"
+      ]
+    }
+  },
+  "endpoints": {
+    "baseUrl": "/api/auth",
+    "routes": [
+      {
+        "method": "POST",
+        "path": "/register",
+        "description": "Register a new user account",
+        "requestBody": {
+          "type": "RegisterRequest",
+          "required": true,
+          "schema": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "required": true,
+              "validation": "Valid email format"
+            },
+            "password": {
+              "type": "string",
+              "required": true,
+              "validation": "Minimum 6 characters"
+            },
+            "firstName": {
+              "type": "string",
+              "required": true,
+              "validation": "Not blank"
+            },
+            "lastName": {
+              "type": "string",
+              "required": true,
+              "validation": "Not blank"
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "schema": {
+              "success": "boolean",
+              "message": "string",
+              "data": "userId (Long)"
+            }
+          },
+          "400": {
+            "description": "Registration failed",
+            "schema": {
+              "success": "boolean (false)",
+              "message": "string (error details)"
+            }
+          }
+        },
+        "example": {
+          "request": {
+            "email": "user@example.com",
+            "password": "password123",
+            "firstName": "John",
+            "lastName": "Doe"
+          },
+          "response": {
+            "success": true,
+            "message": "User registered successfully",
+            "data": 1
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/login",
+        "description": "Authenticate user and receive access/refresh tokens",
+        "requestBody": {
+          "type": "LoginRequest",
+          "required": true,
+          "schema": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "required": true
+            },
+            "password": {
+              "type": "string",
+              "required": true
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "schema": {
+              "accessToken": "string (JWT)",
+              "refreshToken": "string (JWT)",
+              "userId": "Long",
+              "email": "string",
+              "roles": "array of strings"
+            }
+          },
+          "400": {
+            "description": "Authentication failed",
+            "schema": {
+              "error": "string (error message)"
+            }
+          }
+        },
+        "example": {
+          "request": {
+            "email": "user@example.com",
+            "password": "password123"
+          },
+          "response": {
+            "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+            "refreshToken": "eyJhbGciOiJIUzUxMiJ9...",
+            "userId": 1,
+            "email": "user@example.com",
+            "roles": ["USER"]
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/logout",
+        "description": "Logout user and revoke tokens",
+        "headers": {
+          "Authorization": {
+            "type": "string",
+            "required": true,
+            "format": "Bearer {token}",
+            "description": "JWT access token"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "schema": {
+              "success": "boolean (true)",
+              "message": "string"
+            }
+          },
+          "400": {
+            "description": "Logout failed",
+            "schema": {
+              "success": "boolean (false)",
+              "message": "string (error details)"
+            }
+          }
+        },
+        "example": {
+          "response": {
+            "success": true,
+            "message": "Logout successful"
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/refresh",
+        "description": "Refresh access token using refresh token",
+        "requestBody": {
+          "type": "RefreshTokenRequest",
+          "required": true,
+          "schema": {
+            "refreshToken": {
+              "type": "string",
+              "required": true,
+              "description": "Valid JWT refresh token"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed successfully",
+            "schema": {
+              "accessToken": "string (new JWT)",
+              "refreshToken": "string (same refresh token)",
+              "userId": "Long",
+              "email": "string",
+              "roles": "array of strings"
+            }
+          },
+          "400": {
+            "description": "Token refresh failed",
+            "schema": {
+              "error": "string (error message)"
+            }
+          }
+        },
+        "example": {
+          "request": {
+            "refreshToken": "eyJhbGciOiJIUzUxMiJ9..."
+          },
+          "response": {
+            "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+            "refreshToken": "eyJhbGciOiJIUzUxMiJ9...",
+            "userId": 1,
+            "email": "user@example.com",
+            "roles": ["USER"]
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/validate",
+        "description": "Validate JWT token and return user details",
+        "requestBody": {
+          "type": "TokenValidationRequest",
+          "required": true,
+          "schema": {
+            "token": {
+              "type": "string",
+              "required": true,
+              "description": "JWT token to validate"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token validation result",
+            "schema": {
+              "valid": "boolean",
+              "userId": "Long (if valid)",
+              "email": "string (if valid)",
+              "roles": "array of strings (if valid)"
+            }
+          }
+        },
+        "example": {
+          "request": {
+            "token": "eyJhbGciOiJIUzUxMiJ9..."
+          },
+          "response": {
+            "valid": true,
+            "userId": 1,
+            "email": "user@example.com",
+            "roles": ["USER"]
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/test",
+        "description": "Health check endpoint",
+        "responses": {
+          "200": {
+            "description": "Service is running",
+            "schema": {
+              "message": "string"
+            }
+          }
+        },
+        "example": {
+          "response": "Auth Service is running!"
+        }
+      }
+    ]
+  },
+  "dataModels": {
+    "User": {
+      "description": "User entity stored in database",
+      "fields": {
+        "id": "Long (Primary Key, Auto-generated)",
+        "email": "String (Unique, Email format)",
+        "password": "String (BCrypt hashed)",
+        "firstName": "String",
+        "lastName": "String",
+        "roles": "Set<Role> (USER, ADMIN, DRIVER, OPERATOR)",
+        "isActive": "Boolean (Default: true)",
+        "createdAt": "LocalDateTime (Auto-generated)",
+        "updatedAt": "LocalDateTime (Auto-updated)"
+      }
+    },
+    "Token": {
+      "description": "Token entity for tracking JWT tokens",
+      "fields": {
+        "id": "Long (Primary Key)",
+        "userId": "Long (Foreign Key)",
+        "token": "String (JWT token value)",
+        "tokenType": "TokenType (ACCESS_TOKEN, REFRESH_TOKEN)",
+        "isRevoked": "Boolean (Default: false)",
+        "createdAt": "LocalDateTime",
+        "expiresAt": "LocalDateTime"
+      }
+    },
+    "Role": {
+      "description": "User role enumeration",
+      "values": ["USER", "ADMIN", "DRIVER", "OPERATOR"]
+    }
+  },
+  "configuration": {
+    "jwt": {
+      "secret": "Configurable JWT signing secret (minimum 64 characters)",
+      "accessTokenExpiration": "900 seconds (15 minutes)",
+      "refreshTokenExpiration": "604800 seconds (7 days)",
+      "algorithm": "HS512"
+    },
+    "database": {
+      "type": "PostgreSQL",
+      "url": "jdbc:postgresql://localhost:5432/authdb",
+      "username": "postgres",
+      "password": "password",
+      "hibernateDialect": "PostgreSQLDialect",
+      "ddlAuto": "update"
+    },
+    "server": {
+      "port": 8081
+    },
+    "eureka": {
+      "serviceUrl": "http://localhost:8761/eureka/",
+      "preferIpAddress": true
+    }
+  },
+  "integrations": {
+    "serviceDiscovery": {
+      "type": "Eureka Client",
+      "registryUrl": "http://localhost:8761/eureka/",
+      "description": "Registers with Eureka service registry for microservice discovery"
+    },
+    "userService": {
+      "client": "UserServiceClient",
+      "description": "WebClient integration for user-related operations",
+      "purpose": "Fetch additional user details when needed"
+    }
+  },
+  "scheduledTasks": {
+    "tokenCleanup": {
+      "description": "Automatic cleanup of expired tokens",
+      "schedule": "Daily at 2:00 AM (cron: 0 0 2 * * ?)",
+      "action": "Removes expired tokens from database"
+    }
+  },
+  "errorHandling": {
+    "commonErrors": {
+      "INVALID_CREDENTIALS": "Email or password is incorrect",
+      "USER_ALREADY_EXISTS": "User with this email already exists",
+      "TOKEN_EXPIRED": "JWT token has expired",
+      "TOKEN_INVALID": "JWT token is invalid or malformed",
+      "TOKEN_REVOKED": "Token has been revoked",
+      "USER_NOT_FOUND": "User not found in system",
+      "AUTHORIZATION_MISSING": "Authorization header missing or invalid"
+    }
+  },
+  "usage": {
+    "forOtherServices": {
+      "description": "How other microservices should interact with auth-service",
+      "steps": [
+        "1. Register users via POST /api/auth/register",
+        "2. Authenticate users via POST /api/auth/login to get tokens",
+        "3. Validate tokens via POST /api/auth/validate before processing requests",
+        "4. Use refresh tokens via POST /api/auth/refresh to get new access tokens",
+        "5. Logout users via POST /api/auth/logout to revoke tokens"
+      ],
+      "tokenUsage": {
+        "accessToken": "Include in Authorization header as 'Bearer {token}' for API calls",
+        "refreshToken": "Use only for refreshing access tokens, store securely",
+        "validation": "Always validate tokens before processing authenticated requests"
+      }
+    }
+  },
+  "testing": {
+    "testEndpoint": "GET /api/auth/test",
+    "integrationTests": "Available in src/test/java/com/smarttransit/authservice/",
+    "testDatabase": "Uses application-test.properties for test configuration"
+  }
+}

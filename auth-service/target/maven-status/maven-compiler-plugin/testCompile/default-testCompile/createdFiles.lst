@@ -1,0 +1,6 @@
+com\smarttransit\authservice\service\TokenServiceTest.class
+com\smarttransit\authservice\util\TestDataBuilder.class
+com\smarttransit\authservice\service\AuthServiceTest.class
+com\smarttransit\authservice\AuthServiceApplicationTests.class
+com\smarttransit\authservice\controller\AuthControllerIntegrationTest.class
+com\smarttransit\authservice\config\TestConfig.class

@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">auth-service</a> &gt; <a href="index.source.html" class="el_package">com.smarttransit.authservice.service</a> &gt; <span class="el_source">TokenService.java</span></div><h1>TokenService.java</h1><pre class="source lang-java linenums">package com.smarttransit.authservice.service;
+
+import com.smarttransit.authservice.dto.TokenValidationResponse;
+import com.smarttransit.authservice.model.Token;
+import com.smarttransit.authservice.enums.TokenType;
+import com.smarttransit.authservice.repository.TokenRepository;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class TokenService {
+
+    private final TokenRepository tokenRepository;
+    private SecretKey secretKey;
+
+    @Value(&quot;${jwt.secret:mySecretKeyForJWTTokenGenerationThatShouldBeAtLeast256Bits}&quot;)
+    private String jwtSecret;
+
+    @Value(&quot;${jwt.access-token.expiration:900}&quot;) // 15 minutes default
+    private long accessTokenExpiration;
+
+    @Value(&quot;${jwt.refresh-token.expiration:604800}&quot;) // 7 days default
+    private long refreshTokenExpiration;
+
+    @Autowired
+<span class="fc" id="L36">    public TokenService(TokenRepository tokenRepository) {</span>
+<span class="fc" id="L37">        this.tokenRepository = tokenRepository;</span>
+<span class="fc" id="L38">    }</span>
+
+    private SecretKey getSecretKey() {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (secretKey == null) {</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">            if (jwtSecret == null) {</span>
+<span class="nc" id="L43">                throw new IllegalStateException(&quot;JWT secret is not configured&quot;);</span>
+            }
+            // Ensure the secret is long enough for HS512
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            if (jwtSecret.length() &lt; 64) {</span>
+<span class="nc" id="L47">                jwtSecret = String.format(&quot;%-64s&quot;, jwtSecret).replace(' ', '0');</span>
+            }
+<span class="fc" id="L49">            secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes());</span>
+        }
+<span class="fc" id="L51">        return secretKey;</span>
+    }
+
+    /**
+     * Generate JWT access token
+     */
+    public String generateAccessToken(String email, Long userId, List&lt;String&gt; roles) {
+        try {
+<span class="fc" id="L59">            Date now = new Date();</span>
+<span class="fc" id="L60">            Date expiryDate = new Date(now.getTime() + accessTokenExpiration * 1000);</span>
+
+<span class="fc" id="L62">            String token = Jwts.builder()</span>
+<span class="fc" id="L63">                    .setSubject(email)</span>
+<span class="fc" id="L64">                    .claim(&quot;userId&quot;, userId.toString()) // Store as string to avoid type issues</span>
+<span class="fc" id="L65">                    .claim(&quot;email&quot;, email)</span>
+<span class="fc" id="L66">                    .claim(&quot;roles&quot;, roles)</span>
+<span class="fc" id="L67">                    .claim(&quot;tokenType&quot;, &quot;ACCESS&quot;)</span>
+<span class="fc" id="L68">                    .setIssuedAt(now)</span>
+<span class="fc" id="L69">                    .setExpiration(expiryDate)</span>
+<span class="fc" id="L70">                    .signWith(getSecretKey(), SignatureAlgorithm.HS512)</span>
+<span class="fc" id="L71">                    .compact();</span>
+
+<span class="pc bpc" id="L73" title="2 of 4 branches missed.">            if (token == null || token.trim().isEmpty()) {</span>
+<span class="nc" id="L74">                throw new RuntimeException(&quot;Failed to generate access token&quot;);</span>
+            }
+
+<span class="fc" id="L77">            return token;</span>
+<span class="nc" id="L78">        } catch (Exception e) {</span>
+<span class="nc" id="L79">            throw new RuntimeException(&quot;Error generating access token&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Generate JWT refresh token
+     */
+    public String generateRefreshToken(String email) {
+        try {
+<span class="fc" id="L88">            Date now = new Date();</span>
+<span class="fc" id="L89">            Date expiryDate = new Date(now.getTime() + refreshTokenExpiration * 1000);</span>
+
+<span class="fc" id="L91">            String token = Jwts.builder()</span>
+<span class="fc" id="L92">                    .setSubject(email)</span>
+<span class="fc" id="L93">                    .claim(&quot;tokenType&quot;, &quot;REFRESH&quot;)</span>
+<span class="fc" id="L94">                    .setIssuedAt(now)</span>
+<span class="fc" id="L95">                    .setExpiration(expiryDate)</span>
+<span class="fc" id="L96">                    .signWith(getSecretKey(), SignatureAlgorithm.HS512)</span>
+<span class="fc" id="L97">                    .compact();</span>
+
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">            if (token == null || token.trim().isEmpty()) {</span>
+<span class="nc" id="L100">                throw new RuntimeException(&quot;Failed to generate refresh token&quot;);</span>
+            }
+
+<span class="fc" id="L103">            return token;</span>
+<span class="nc" id="L104">        } catch (Exception e) {</span>
+<span class="nc" id="L105">            throw new RuntimeException(&quot;Error generating refresh token&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Store token in database
+     */
+    public Token storeToken(Long userId, String tokenValue, TokenType tokenType) {
+<span class="fc" id="L113">        Token token = new Token();</span>
+<span class="fc" id="L114">        token.setUserId(userId);</span>
+<span class="fc" id="L115">        token.setToken(tokenValue);</span>
+<span class="fc" id="L116">        token.setTokenType(tokenType);</span>
+<span class="fc" id="L117">        token.setCreatedAt(LocalDateTime.now());</span>
+        
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        long expiration = tokenType == TokenType.ACCESS_TOKEN ? </span>
+<span class="pc" id="L120">                         accessTokenExpiration : refreshTokenExpiration;</span>
+<span class="fc" id="L121">        token.setExpiresAt(LocalDateTime.now().plusSeconds(expiration));</span>
+        
+<span class="fc" id="L123">        token.setIsRevoked(false);</span>
+
+<span class="fc" id="L125">        return tokenRepository.save(token);</span>
+    }
+
+    /**
+     * Revoke token
+     */
+    public void revokeToken(String tokenValue) {
+<span class="fc" id="L132">        Optional&lt;Token&gt; tokenOpt = tokenRepository.findByToken(tokenValue);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        if (tokenOpt.isPresent()) {</span>
+<span class="fc" id="L134">            Token token = tokenOpt.get();</span>
+<span class="fc" id="L135">            token.setIsRevoked(true);</span>
+<span class="fc" id="L136">            tokenRepository.save(token);</span>
+        }
+<span class="fc" id="L138">    }</span>
+
+    /**
+     * Revoke all user tokens
+     */
+    public void revokeAllUserTokens(Long userId) {
+<span class="fc" id="L144">        List&lt;Token&gt; validTokens = tokenRepository.findValidTokensByUserId(userId, LocalDateTime.now());</span>
+<span class="fc" id="L145">        validTokens.forEach(token -&gt; {</span>
+<span class="fc" id="L146">            token.setIsRevoked(true);</span>
+<span class="fc" id="L147">        });</span>
+<span class="fc" id="L148">        tokenRepository.saveAll(validTokens);</span>
+<span class="fc" id="L149">    }</span>
+
+    /**
+     * Check if token is revoked
+     */
+    public boolean isTokenRevoked(String tokenValue) {
+<span class="fc" id="L155">        Optional&lt;Token&gt; token = tokenRepository.findByToken(tokenValue);</span>
+<span class="fc" id="L156">        return token.map(Token::getIsRevoked).orElse(true);</span>
+    }
+
+    /**
+     * Parse and validate JWT token
+     */
+    public Claims parseToken(String token) {
+        try {
+<span class="fc" id="L164">            return Jwts.parserBuilder()</span>
+<span class="fc" id="L165">                    .setSigningKey(getSecretKey())</span>
+<span class="fc" id="L166">                    .build()</span>
+<span class="fc" id="L167">                    .parseClaimsJws(token)</span>
+<span class="fc" id="L168">                    .getBody();</span>
+<span class="fc" id="L169">        } catch (ExpiredJwtException e) {</span>
+<span class="fc" id="L170">            throw new RuntimeException(&quot;Token expired&quot;, e);</span>
+<span class="fc" id="L171">        } catch (JwtException | IllegalArgumentException e) {</span>
+<span class="fc" id="L172">            throw new RuntimeException(&quot;Invalid JWT token&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Validate token (signature, expiration, revocation)
+     */
+    public boolean validateToken(String token) {
+        try {
+            // First check revocation
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if (isTokenRevoked(token)) {</span>
+<span class="fc" id="L183">                return false;</span>
+            }
+            
+            // Then parse and validate JWT
+<span class="fc" id="L187">            Claims claims = parseToken(token);</span>
+            
+            // Check expiration
+<span class="fc" id="L190">            Date expiration = claims.getExpiration();</span>
+<span class="fc" id="L191">            return expiration.after(new Date());</span>
+            
+<span class="fc" id="L193">        } catch (Exception e) {</span>
+<span class="fc" id="L194">            return false;</span>
+        }
+    }
+
+    /**
+     * Validate a refresh token (specific validation for refresh tokens)
+     */
+    public boolean validateRefreshToken(String refreshToken) {
+        try {
+            // First validate the token basics (signature, expiration, revocation)
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (!validateToken(refreshToken)) {</span>
+<span class="nc" id="L205">                return false;</span>
+            }
+
+            // Check that it's actually a refresh token type
+<span class="nc" id="L209">            Claims claims = parseToken(refreshToken);</span>
+<span class="nc" id="L210">            String tokenType = claims.get(&quot;tokenType&quot;, String.class);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            if (!&quot;REFRESH&quot;.equals(tokenType)) {</span>
+<span class="nc" id="L212">                return false;</span>
+            }
+
+            // Verify the token exists in database and is not revoked
+<span class="nc" id="L216">            Optional&lt;Token&gt; tokenEntity = tokenRepository.findByToken(refreshToken);</span>
+<span class="nc bnc" id="L217" title="All 4 branches missed.">            if (tokenEntity.isEmpty() || tokenEntity.get().getIsRevoked()) {</span>
+<span class="nc" id="L218">                return false;</span>
+            }
+
+            // Verify it's stored as a refresh token in database
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            return tokenEntity.get().getTokenType() == TokenType.REFRESH_TOKEN;</span>
+
+<span class="nc" id="L224">        } catch (Exception e) {</span>
+<span class="nc" id="L225">            return false;</span>
+        }
+    }
+
+    /**
+     * Extract email from token
+     */
+    public String getEmailFromToken(String token) {
+<span class="fc" id="L233">        Claims claims = parseToken(token);</span>
+<span class="fc" id="L234">        return claims.getSubject();</span>
+    }
+
+    /**
+     * Extract user ID from token with proper type handling
+     */
+    public Long getUserIdFromToken(String token) {
+<span class="fc" id="L241">        Claims claims = parseToken(token);</span>
+<span class="fc" id="L242">        Object userIdClaim = claims.get(&quot;userId&quot;);</span>
+        
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (userIdClaim instanceof Integer) {</span>
+<span class="nc" id="L245">            return ((Integer) userIdClaim).longValue();</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        } else if (userIdClaim instanceof Long) {</span>
+<span class="nc" id="L247">            return (Long) userIdClaim;</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        } else if (userIdClaim instanceof String) {</span>
+<span class="fc" id="L249">            return Long.valueOf((String) userIdClaim);</span>
+        } else {
+<span class="nc" id="L251">            throw new IllegalArgumentException(&quot;User ID claim is of unsupported type: &quot; + </span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                (userIdClaim != null ? userIdClaim.getClass().getName() : &quot;null&quot;));</span>
+        }
+    }
+
+    /**
+     * Extract roles from token
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public List&lt;String&gt; getRolesFromToken(String token) {
+<span class="fc" id="L261">        Claims claims = parseToken(token);</span>
+<span class="fc" id="L262">        return (List&lt;String&gt;) claims.get(&quot;roles&quot;);</span>
+    }
+
+    /**
+     * Clean up expired tokens (scheduled task)
+     * Runs every day at 2 AM
+     */
+    @Scheduled(cron = &quot;0 0 2 * * ?&quot;)
+    public void cleanupExpiredTokens() {
+<span class="nc" id="L271">        LocalDateTime now = LocalDateTime.now();</span>
+<span class="nc" id="L272">        List&lt;Token&gt; expiredTokens = tokenRepository.findByExpiresAtBefore(now);</span>
+        
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        if (!expiredTokens.isEmpty()) {</span>
+<span class="nc" id="L275">            tokenRepository.deleteAll(expiredTokens);</span>
+<span class="nc" id="L276">            System.out.println(&quot;Cleanup completed: &quot; + expiredTokens.size() + &quot; expired tokens deleted&quot;);</span>
+        }
+<span class="nc" id="L278">    }</span>
+
+    /**
+     * Check if token is expired
+     */
+    public boolean isTokenExpired(String token) {
+        try {
+<span class="nc" id="L285">            Claims claims = parseToken(token);</span>
+<span class="nc" id="L286">            return claims.getExpiration().before(new Date());</span>
+<span class="nc" id="L287">        } catch (Exception e) {</span>
+<span class="nc" id="L288">            return true;</span>
+        }
+    }
+
+    /**
+     * Get stored token from database
+     */
+    public Token getStoredToken(String tokenValue) {
+<span class="nc" id="L296">        return tokenRepository.findByToken(tokenValue).orElse(null);</span>
+    }
+
+    /**
+     * Extract user ID from token (alias for getUserIdFromToken)
+     */
+    public Long extractUserIdFromToken(String token) {
+<span class="nc" id="L303">        return getUserIdFromToken(token);</span>
+    }
+
+    /**
+     * Generate new access token from valid refresh token
+     */
+    public String refreshAccessToken(String refreshToken) {
+        // Verify that the refresh token is valid
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        if (!validateRefreshToken(refreshToken)) {</span>
+<span class="nc" id="L312">            throw new RuntimeException(&quot;Invalid refresh token&quot;);</span>
+        }
+
+        // Retrieve token information
+<span class="fc" id="L316">        Optional&lt;Token&gt; tokenEntity = tokenRepository.findByToken(refreshToken);</span>
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">        if (tokenEntity.isEmpty()) {</span>
+<span class="nc" id="L318">            throw new RuntimeException(&quot;Refresh token not found&quot;);</span>
+        }
+
+<span class="fc" id="L321">        Long userId = tokenEntity.get().getUserId();</span>
+
+        // Extract email from refresh token
+<span class="fc" id="L324">        Claims claims = parseToken(refreshToken);</span>
+<span class="fc" id="L325">        String email = claims.getSubject();</span>
+
+        // Get roles from the token or user service
+<span class="fc" id="L328">        List&lt;String&gt; roles = getRolesFromToken(refreshToken);</span>
+<span class="pc bpc" id="L329" title="2 of 4 branches missed.">        if (roles == null || roles.isEmpty()) {</span>
+<span class="nc" id="L330">            roles = getRolesFromUserService(userId);</span>
+        }
+
+        // Regenerate access token
+<span class="fc" id="L334">        return generateAccessToken(email, userId, roles);</span>
+    }
+
+    private List&lt;String&gt; getRolesFromUserService(Long userId) {
+        // TODO: Implement this method to fetch roles from user service
+        // For testing, return a default list
+<span class="nc" id="L340">        return List.of(&quot;ROLE_USER&quot;);</span>
+    }
+
+
+    /**
+     * Validate token and return user details
+     */
+    public TokenValidationResponse validateTokenAndGetDetails(String token) {
+        try {
+            // Validate the token first
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">            if (!validateToken(token)) {</span>
+<span class="nc" id="L351">                return new TokenValidationResponse(false, null, null, null);</span>
+            }
+
+            // Extract claims from the token
+<span class="fc" id="L355">            Claims claims = parseToken(token);</span>
+            
+            // Get user ID with proper type handling
+<span class="fc" id="L358">            Long userId = getUserIdFromToken(token);</span>
+<span class="fc" id="L359">            String email = claims.getSubject();</span>
+            
+            @SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L362">            List&lt;String&gt; roles = (List&lt;String&gt;) claims.get(&quot;roles&quot;);</span>
+
+<span class="fc" id="L364">            return new TokenValidationResponse(true, userId, email, roles);</span>
+
+<span class="nc" id="L366">        } catch (Exception e) {</span>
+<span class="nc" id="L367">            return new TokenValidationResponse(false, null, null, null);</span>
+        }
+    }
+
+    /**
+     * Get all valid tokens for a user
+     */
+    public List&lt;Token&gt; getValidUserTokens(Long userId) {
+<span class="nc" id="L375">        return tokenRepository.findValidTokensByUserId(userId, LocalDateTime.now());</span>
+    }
+
+    /**
+     * Check if user has any valid tokens
+     */
+    public boolean hasValidTokens(Long userId) {
+<span class="nc bnc" id="L382" title="All 2 branches missed.">        return !tokenRepository.findValidTokensByUserId(userId, LocalDateTime.now()).isEmpty();</span>
+    }
+
+    /**
+     * Get token by value
+     */
+    public Optional&lt;Token&gt; getTokenByValue(String tokenValue) {
+<span class="nc" id="L389">        return tokenRepository.findByToken(tokenValue);</span>
+    }
+
+    /**
+     * Save token entity
+     */
+    public Token saveToken(Token token) {
+<span class="nc" id="L396">        return tokenRepository.save(token);</span>
+    }
+
+    /**
+     * Delete token by ID
+     */
+    public void deleteToken(Long tokenId) {
+<span class="nc" id="L403">        tokenRepository.deleteById(tokenId);</span>
+<span class="nc" id="L404">    }</span>
+
+    /**
+     * Find tokens by user ID
+     */
+    public List&lt;Token&gt; findTokensByUserId(Long userId) {
+<span class="nc" id="L410">        return tokenRepository.findByUserId(userId);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

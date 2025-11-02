@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">auth-service</a> &gt; <a href="index.source.html" class="el_package">com.smarttransit.authservice.service</a> &gt; <span class="el_source">AuthService.java</span></div><h1>AuthService.java</h1><pre class="source lang-java linenums">package com.smarttransit.authservice.service;
+
+import com.smarttransit.authservice.dto.AuthResponse;
+import com.smarttransit.authservice.dto.LoginRequest;
+import com.smarttransit.authservice.dto.LoginResponse;
+import com.smarttransit.authservice.dto.RegisterRequest;
+import com.smarttransit.authservice.dto.TokenValidationResponse;
+import com.smarttransit.authservice.enums.TokenType;
+import com.smarttransit.authservice.model.Role;
+import com.smarttransit.authservice.model.User;
+import com.smarttransit.authservice.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final TokenService tokenService;
+    private final BCryptPasswordEncoder passwordEncoder;
+
+    @Autowired
+<span class="fc" id="L28">    public AuthService(UserRepository userRepository, TokenService tokenService, BCryptPasswordEncoder passwordEncoder) {</span>
+<span class="fc" id="L29">        this.userRepository = userRepository;</span>
+<span class="fc" id="L30">        this.tokenService = tokenService;</span>
+<span class="fc" id="L31">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc" id="L32">    }</span>
+
+    /**
+     * Register a new user
+     */
+    public AuthResponse register(RegisterRequest request) {
+        try {
+            // Check if user already exists
+<span class="nc bnc" id="L40" title="All 2 branches missed.">            if (userRepository.existsByEmail(request.getEmail())) {</span>
+<span class="nc" id="L41">                return AuthResponse.error(&quot;User with this email already exists&quot;);</span>
+            }
+
+            // Create new user
+<span class="nc" id="L45">            User user = new User();</span>
+<span class="nc" id="L46">            user.setEmail(request.getEmail());</span>
+<span class="nc" id="L47">            user.setPassword(passwordEncoder.encode(request.getPassword()));</span>
+<span class="nc" id="L48">            user.setFirstName(request.getFirstName());</span>
+<span class="nc" id="L49">            user.setLastName(request.getLastName());</span>
+<span class="nc" id="L50">            user.setRoles(Set.of(Role.USER)); // Default role</span>
+<span class="nc" id="L51">            user.setIsActive(true);</span>
+
+<span class="nc" id="L53">            User savedUser = userRepository.save(user);</span>
+            
+<span class="nc" id="L55">            return AuthResponse.success(&quot;User registered successfully&quot;, savedUser.getId());</span>
+<span class="nc" id="L56">        } catch (Exception e) {</span>
+<span class="nc" id="L57">            return AuthResponse.error(&quot;Registration failed: &quot; + e.getMessage());</span>
+        }
+    }
+
+    /**
+     * Authenticate user and return tokens
+     */
+    public LoginResponse login(String email, String password) {
+        try {
+            // Find user by email
+<span class="fc" id="L67">            User user = userRepository.findByEmail(email)</span>
+<span class="fc" id="L68">                    .orElseThrow(() -&gt; new RuntimeException(&quot;Invalid credentials&quot;));</span>
+
+            // Verify password
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            if (!passwordEncoder.matches(password, user.getPassword())) {</span>
+<span class="fc" id="L72">                throw new RuntimeException(&quot;Invalid credentials&quot;);</span>
+            }
+
+            // Convert roles to string list
+<span class="fc" id="L76">            List&lt;String&gt; roles = user.getRoles().stream()</span>
+<span class="fc" id="L77">                    .map(role -&gt; role.name())</span>
+<span class="fc" id="L78">                    .collect(Collectors.toList());</span>
+
+            // Generate tokens
+<span class="fc" id="L81">            String accessToken = tokenService.generateAccessToken(user.getEmail(), user.getId(), roles);</span>
+<span class="fc" id="L82">            String refreshToken = tokenService.generateRefreshToken(user.getEmail());</span>
+
+            // Store tokens in database
+<span class="fc" id="L85">            tokenService.storeToken(user.getId(), accessToken, TokenType.ACCESS_TOKEN);</span>
+<span class="fc" id="L86">            tokenService.storeToken(user.getId(), refreshToken, TokenType.REFRESH_TOKEN);</span>
+
+<span class="fc" id="L88">            return new LoginResponse(accessToken, refreshToken, user.getId(), user.getEmail(), roles);</span>
+<span class="fc" id="L89">        } catch (Exception e) {</span>
+<span class="fc" id="L90">            throw new RuntimeException(&quot;Authentication failed: &quot; + e.getMessage());</span>
+        }
+    }
+
+    /**
+     * Logout user by revoking tokens
+     */
+    public AuthResponse logout(String token) {
+        try {
+<span class="fc" id="L99">            tokenService.revokeToken(token);</span>
+<span class="fc" id="L100">            Long userId = null;</span>
+            try {
+<span class="fc" id="L102">                userId = tokenService.getUserIdFromToken(token);</span>
+<span class="pc" id="L103">            } catch (Exception ignored) {}</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">            if (userId != null) {</span>
+<span class="fc" id="L105">                tokenService.revokeAllUserTokens(userId);</span>
+            }
+<span class="fc" id="L107">            return AuthResponse.success(&quot;Logged out successfully&quot;);</span>
+<span class="nc" id="L108">        } catch (Exception e) {</span>
+<span class="nc" id="L109">            return AuthResponse.error(&quot;Logout failed: &quot; + e.getMessage());</span>
+        }
+    }
+
+    /**
+     * Refresh access token using refresh token
+     */
+    public LoginResponse refreshToken(String refreshToken) {
+        try {
+            // Validate refresh token
+<span class="fc bfc" id="L119" title="All 2 branches covered.">            if (!tokenService.validateRefreshToken(refreshToken)) {</span>
+<span class="fc" id="L120">                throw new RuntimeException(&quot;Invalid or expired refresh token&quot;);</span>
+            }
+
+            // Get user from refresh token
+<span class="fc" id="L124">            String email = tokenService.getEmailFromToken(refreshToken);</span>
+<span class="fc" id="L125">            User user = userRepository.findByEmailAndIsActiveTrue(email)</span>
+<span class="pc" id="L126">                    .orElseThrow(() -&gt; new RuntimeException(&quot;User not found&quot;));</span>
+
+            // Convert roles to string list
+<span class="fc" id="L129">            List&lt;String&gt; roles = user.getRoles().stream()</span>
+<span class="fc" id="L130">                    .map(Role::name)</span>
+<span class="fc" id="L131">                    .collect(Collectors.toList());</span>
+
+            // Generate new access token
+<span class="fc" id="L134">            String newAccessToken = tokenService.generateAccessToken(user.getEmail(), user.getId(), roles);</span>
+            
+            // Store new access token
+<span class="fc" id="L137">            tokenService.storeToken(user.getId(), newAccessToken, TokenType.ACCESS_TOKEN);</span>
+
+<span class="fc" id="L139">            return new LoginResponse(newAccessToken, refreshToken, user.getId(), user.getEmail(), roles);</span>
+<span class="fc" id="L140">        } catch (Exception e) {</span>
+<span class="fc" id="L141">            throw new RuntimeException(&quot;Token refresh failed: &quot; + e.getMessage());</span>
+        }
+    }
+
+    /**
+     * Validate token and return user details
+     */
+    public TokenValidationResponse validateToken(String token) {
+<span class="fc" id="L149">        return tokenService.validateTokenAndGetDetails(token);</span>
+    }
+
+    /**
+     * Get user by ID
+     */
+    public User getUserById(Long userId) {
+<span class="nc" id="L156">        return userRepository.findById(userId)</span>
+<span class="nc" id="L157">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found&quot;));</span>
+    }
+
+    /**
+     * Get user by email
+     */
+    public User getUserByEmail(String email) {
+<span class="nc" id="L164">        return userRepository.findByEmail(email)</span>
+<span class="nc" id="L165">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

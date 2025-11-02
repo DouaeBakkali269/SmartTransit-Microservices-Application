@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="fr"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">auth-service</a> &gt; <a href="index.source.html" class="el_package">com.smarttransit.authservice.controller</a> &gt; <span class="el_source">AuthController.java</span></div><h1>AuthController.java</h1><pre class="source lang-java linenums">package com.smarttransit.authservice.controller;
+
+import com.smarttransit.authservice.dto.*;
+import com.smarttransit.authservice.service.AuthService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/auth&quot;)
+public class AuthController {
+
+    private final AuthService authService;
+
+    @Autowired
+<span class="fc" id="L18">    public AuthController(AuthService authService) {</span>
+<span class="fc" id="L19">        this.authService = authService;</span>
+<span class="fc" id="L20">    }</span>
+
+    @PostMapping(&quot;/register&quot;)
+    public ResponseEntity&lt;AuthResponse&gt; register(@Valid @RequestBody RegisterRequest registerRequest) {
+        try {
+<span class="nc" id="L25">            authService.register(registerRequest);</span>
+<span class="nc" id="L26">            return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="nc" id="L27">                .body(AuthResponse.success(&quot;User registered successfully&quot;));</span>
+<span class="nc" id="L28">        } catch (Exception e) {</span>
+<span class="nc" id="L29">            return ResponseEntity.badRequest()</span>
+<span class="nc" id="L30">                .body(AuthResponse.error(&quot;Registration failed: &quot; + e.getMessage()));</span>
+        }
+    }
+
+    @PostMapping(&quot;/login&quot;)
+    public ResponseEntity&lt;LoginResponse&gt; login(@Valid @RequestBody LoginRequest loginRequest) {
+        try {
+<span class="nc" id="L37">            LoginResponse response = authService.login(</span>
+<span class="nc" id="L38">                loginRequest.getEmail(), </span>
+<span class="nc" id="L39">                loginRequest.getPassword()</span>
+            );
+<span class="nc" id="L41">            return ResponseEntity.ok(response);</span>
+<span class="nc" id="L42">        } catch (Exception e) {</span>
+<span class="nc" id="L43">            throw new RuntimeException(e.getMessage());</span>
+        }
+    }
+
+    @PostMapping(&quot;/logout&quot;)
+    public ResponseEntity&lt;AuthResponse&gt; logout(@RequestHeader(&quot;Authorization&quot;) String authHeader) {
+        try {
+<span class="nc" id="L50">            String token = extractTokenFromHeader(authHeader);</span>
+<span class="nc" id="L51">            authService.logout(token);</span>
+<span class="nc" id="L52">            return ResponseEntity.ok(AuthResponse.success(&quot;Logout successful&quot;));</span>
+<span class="nc" id="L53">        } catch (Exception e) {</span>
+<span class="nc" id="L54">            return ResponseEntity.badRequest()</span>
+<span class="nc" id="L55">                .body(AuthResponse.error(&quot;Logout failed: &quot; + e.getMessage()));</span>
+        }
+    }
+
+    @PostMapping(&quot;/refresh&quot;)
+    public ResponseEntity&lt;LoginResponse&gt; refreshToken(@Valid @RequestBody RefreshTokenRequest refreshRequest) {
+        try {
+<span class="nc" id="L62">            LoginResponse response = authService.refreshToken(refreshRequest.getRefreshToken());</span>
+<span class="nc" id="L63">            return ResponseEntity.ok(response);</span>
+<span class="nc" id="L64">        } catch (Exception e) {</span>
+<span class="nc" id="L65">            throw new RuntimeException(e.getMessage());</span>
+        }
+    }
+
+    @PostMapping(&quot;/validate&quot;)
+    public ResponseEntity&lt;TokenValidationResponse&gt; validateToken(@Valid @RequestBody TokenValidationRequest validationRequest) {
+        try {
+<span class="nc" id="L72">            TokenValidationResponse response = authService.validateToken(validationRequest.getToken());</span>
+<span class="nc" id="L73">            return ResponseEntity.ok(response);</span>
+<span class="nc" id="L74">        } catch (Exception e) {</span>
+<span class="nc" id="L75">            TokenValidationResponse response = new TokenValidationResponse(false, null, null, null);</span>
+<span class="nc" id="L76">            return ResponseEntity.ok(response);</span>
+        }
+    }
+
+    @GetMapping(&quot;/test&quot;)
+    public ResponseEntity&lt;String&gt; test() {
+<span class="nc" id="L82">        return ResponseEntity.ok(&quot;Auth Service is running!&quot;);</span>
+    }
+
+    private String extractTokenFromHeader(String authHeader) {
+<span class="nc bnc" id="L86" title="All 4 branches missed.">        if (authHeader != null &amp;&amp; authHeader.startsWith(&quot;Bearer &quot;)) {</span>
+<span class="nc" id="L87">            return authHeader.substring(7);</span>
+        }
+<span class="nc" id="L89">        throw new RuntimeException(&quot;Authorization token missing or invalid&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>
