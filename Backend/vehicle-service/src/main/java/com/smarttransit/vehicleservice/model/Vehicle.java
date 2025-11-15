@@ -1,20 +1,17 @@
 package com.smarttransit.vehicleservice.model;
 
-import java.time.Instant;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
 @Table(name = "vehicles")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Vehicle {
 
     @Id
@@ -60,32 +57,6 @@ public class Vehicle {
     public void preUpdate() {
         updatedAt = Instant.now();
     }
-
-    // Getters and setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getVehicleNumber() { return vehicleNumber; }
-    public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
-    public VehicleType getType() { return type; }
-    public void setType(VehicleType type) { this.type = type; }
-    public Integer getCapacity() { return capacity; }
-    public void setCapacity(Integer capacity) { this.capacity = capacity; }
-    public String getManufacturer() { return manufacturer; }
-    public void setManufacturer(String manufacturer) { this.manufacturer = manufacturer; }
-    public String getModel() { return model; }
-    public void setModel(String model) { this.model = model; }
-    public Integer getYearManufactured() { return yearManufactured; }
-    public void setYearManufactured(Integer yearManufactured) { this.yearManufactured = yearManufactured; }
-    public VehicleStatus getStatus() { return status; }
-    public void setStatus(VehicleStatus status) { this.status = status; }
-    public Double getCurrentLatitude() { return currentLatitude; }
-    public void setCurrentLatitude(Double currentLatitude) { this.currentLatitude = currentLatitude; }
-    public Double getCurrentLongitude() { return currentLongitude; }
-    public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
     public enum VehicleType {
         BUS, TRAIN, TRAM, METRO, FERRY
