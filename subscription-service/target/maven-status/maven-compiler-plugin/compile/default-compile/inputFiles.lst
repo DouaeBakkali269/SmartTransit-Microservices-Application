@@ -1,0 +1,17 @@
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\dto\CreateSubscriptionRequest.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\model\Notification.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\SubscriptionServiceApplication.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\scheduler\SubscriptionScheduler.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\model\Utilisateur.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\service\impl\ReminderServiceImpl.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\service\SubscriptionService.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\model\Paiement.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\scheduler\ReminderScheduler.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\repository\AbonnementRepository.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\model\Abonnement.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\repository\UtilisateurRepository.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\repository\PaiementRepository.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\service\impl\SubscriptionServiceImpl.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\controller\SubscriptionController.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\repository\NotificationRepository.java
+C:\Users\pc\Desktop\SmartTransit-Microservices-Application\subscription-service\src\main\java\com\smarttransit\subscriptionservice\service\ReminderService.java
