@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Leaflet Routing Demo - Carto Dark</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Leaflet Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    /* Make the routing panel dark to match the map */
+    .leaflet-routing-container {
+      background: #111 !important;
+      color: #eee !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Routing Machine JS -->
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+  <script>
+    // Initialize the map
+    const map = L.map("map").setView([34.020882, -6.841650], 13); // Default: Rabat
+
+    // Carto Dark tile layer
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution:
+          '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd'
+      }
+    ).addTo(map);
+
+    let pointA = null;
+    let pointB = null;
+    let routingControl = null;
+
+    // When clicking the map
+    map.on("click", (e) => {
+      const { lat, lng } = e.latlng;
+
+      if (!pointA) {
+        pointA = L.marker([lat, lng], { title: "Point A" })
+          .addTo(map)
+          .bindPopup("Point A")
+          .openPopup();
+      } 
+      else if (!pointB) {
+        pointB = L.marker([lat, lng], { title: "Point B" })
+          .addTo(map)
+          .bindPopup("Point B")
+          .openPopup();
+
+        // Create the route
+        routingControl = L.Routing.control({
+          waypoints: [
+            L.latLng(pointA.getLatLng()),
+            L.latLng(pointB.getLatLng())
+          ],
+          routeWhileDragging: true,
+          showAlternatives: true,
+          draggableWaypoints: true,
+          lineOptions: {
+            styles: [
+              { color: '#1db4ff', weight: 5 },
+              { color: '#00ffff', weight: 3 }
+            ]
+          }
+        }).addTo(map);
+
+      } else {
+        // Add extra markers
+        L.marker([lat, lng], { title: "Extra marker" })
+          .addTo(map)
+          .bindPopup("Extra marker")
+          .openPopup();
+      }
+    });
+  </script>
+</body>
+</html>
