@@ -2,61 +2,166 @@ package com.smarttransit.authservice.service;
 
 import com.smarttransit.authservice.dto.AuthResponse;
 import com.smarttransit.authservice.dto.LoginRequest;
+import com.smarttransit.authservice.dto.LoginResponse;
+import com.smarttransit.authservice.dto.RegisterRequest;
+import com.smarttransit.authservice.dto.TokenValidationResponse;
+import com.smarttransit.authservice.enums.TokenType;
+import com.smarttransit.authservice.model.Role;
+import com.smarttransit.authservice.model.User;
+import com.smarttransit.authservice.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Base64;
-import java.util.UUID;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class AuthService {
 
-    /**
-     * Simple mock authentication for MVP
-     * In production, this would validate against database and return JWT
-     */
-    public AuthResponse login(LoginRequest request) {
-        // Mock validation - accept any email/password for MVP
-        // In production: validate against user database
-        if (request.getEmail() == null || request.getPassword() == null) {
-            throw new IllegalArgumentException("Email and password are required");
-        }
+    private final UserRepository userRepository;
+    private final TokenService tokenService;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-        // Generate mock token (in production, use JWT)
-        String token = generateMockToken(request.getEmail());
-
-        return new AuthResponse(token, 3600L, request.getEmail());
+    @Autowired
+    public AuthService(UserRepository userRepository, TokenService tokenService, BCryptPasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.tokenService = tokenService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
-     * Validate token (mock implementation for MVP)
+     * Register a new user
      */
-    public boolean validateToken(String token) {
-        // Mock validation - accept any non-empty token
-        // In production: validate JWT signature and expiration
-        return token != null && !token.isEmpty();
-    }
-
-    /**
-     * Get email from token (mock implementation)
-     */
-    public String getEmailFromToken(String token) {
-        // Mock extraction
-        // In production: decode JWT and extract claims
+    public AuthResponse register(RegisterRequest request) {
         try {
-            String decoded = new String(Base64.getDecoder().decode(token.split("\\.")[1]));
-            return decoded; // This would be extracted from JWT claims
+            // Check if user already exists
+            if (userRepository.existsByEmail(request.getEmail())) {
+                return AuthResponse.error("User with this email already exists");
+            }
+
+            // Create new user
+            User user = new User();
+            user.setEmail(request.getEmail());
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setFirstName(request.getFirstName());
+            user.setLastName(request.getLastName());
+            user.setRoles(Set.of(Role.USER)); // Default role
+            user.setIsActive(true);
+
+            User savedUser = userRepository.save(user);
+            
+            return AuthResponse.success("User registered successfully", savedUser.getId());
         } catch (Exception e) {
-            return "unknown@example.com";
+            return AuthResponse.error("Registration failed: " + e.getMessage());
         }
     }
 
-    private String generateMockToken(String email) {
-        // Generate simple Base64 token for MVP
-        // In production: use JWT library (io.jsonwebtoken:jjwt)
-        String header = Base64.getEncoder().encodeToString("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes());
-        String payload = Base64.getEncoder().encodeToString(email.getBytes());
-        String signature = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().getBytes());
+    /**
+     * Authenticate user and return tokens
+     */
+    public LoginResponse login(String email, String password) {
+        try {
+            // Find user by email
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Invalid credentials"));
 
-        return header + "." + payload + "." + signature;
+            // Verify password
+            if (!passwordEncoder.matches(password, user.getPassword())) {
+                throw new RuntimeException("Invalid credentials");
+            }
+
+            // Convert roles to string list
+            List<String> roles = user.getRoles().stream()
+                    .map(role -> role.name())
+                    .collect(Collectors.toList());
+
+            // Generate tokens
+            String accessToken = tokenService.generateAccessToken(user.getEmail(), user.getId(), roles);
+            String refreshToken = tokenService.generateRefreshToken(user.getEmail());
+
+            // Store tokens in database
+            tokenService.storeToken(user.getId(), accessToken, TokenType.ACCESS_TOKEN);
+            tokenService.storeToken(user.getId(), refreshToken, TokenType.REFRESH_TOKEN);
+
+            return new LoginResponse(accessToken, refreshToken, user.getId(), user.getEmail(), roles);
+        } catch (Exception e) {
+            throw new RuntimeException("Authentication failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Logout user by revoking tokens
+     */
+    public AuthResponse logout(String token) {
+        try {
+            tokenService.revokeToken(token);
+            Long userId = null;
+            try {
+                userId = tokenService.getUserIdFromToken(token);
+            } catch (Exception ignored) {}
+            if (userId != null) {
+                tokenService.revokeAllUserTokens(userId);
+            }
+            return AuthResponse.success("Logged out successfully");
+        } catch (Exception e) {
+            return AuthResponse.error("Logout failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Refresh access token using refresh token
+     */
+    public LoginResponse refreshToken(String refreshToken) {
+        try {
+            // Validate refresh token
+            if (!tokenService.validateRefreshToken(refreshToken)) {
+                throw new RuntimeException("Invalid or expired refresh token");
+            }
+
+            // Get user from refresh token
+            String email = tokenService.getEmailFromToken(refreshToken);
+            User user = userRepository.findByEmailAndIsActiveTrue(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Convert roles to string list
+            List<String> roles = user.getRoles().stream()
+                    .map(Role::name)
+                    .collect(Collectors.toList());
+
+            // Generate new access token
+            String newAccessToken = tokenService.generateAccessToken(user.getEmail(), user.getId(), roles);
+            
+            // Store new access token
+            tokenService.storeToken(user.getId(), newAccessToken, TokenType.ACCESS_TOKEN);
+
+            return new LoginResponse(newAccessToken, refreshToken, user.getId(), user.getEmail(), roles);
+        } catch (Exception e) {
+            throw new RuntimeException("Token refresh failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Validate token and return user details
+     */
+    public TokenValidationResponse validateToken(String token) {
+        return tokenService.validateTokenAndGetDetails(token);
+    }
+
+    /**
+     * Get user by ID
+     */
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    /**
+     * Get user by email
+     */
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 }
