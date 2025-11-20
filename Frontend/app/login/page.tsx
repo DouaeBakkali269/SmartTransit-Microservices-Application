@@ -1,33 +1,52 @@
-'use client'
+'use client';
+
 import { LogoIcon } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { loginAction } from '@/lib/actions';
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function LoginPage() {
-    const router = useRouter()
+    const { login } = useAuth();
+    const router = useRouter();
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault()
-        router.push('/dashboard')
+    async function handleSubmit(formData: FormData) {
+        setLoading(true);
+        setError('');
+
+        try {
+            const result = await loginAction(formData);
+            if (result.success && result.user) {
+                login(result.user);
+                // Redirect based on role
+                if (result.user.role === 'driver') {
+                    router.push('/driver/current-trip');
+                } else if (result.user.role === 'admin') {
+                    router.push('/admin/dashboard');
+                } else {
+                    router.push('/search');
+                }
+            } else {
+                setError(result.error || 'Login failed');
+            }
+        } catch (err) {
+            setError('An unexpected error occurred');
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
         <section className="flex min-h-screen bg-zinc-50 px-4 py-16 md:py-32 dark:bg-transparent">
-            <div className="absolute left-6 top-6">
-                <Link
-                    href="/"
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors">
-                    <ArrowLeft className="size-4" />
-                    <span>Go back to homepage</span>
-                </Link>
-            </div>
             <form
-                onSubmit={handleSubmit}
-                className="bg-muted m-auto h-fit w-full max-w-sm overflow-hidden rounded-[calc(var(--radius)+.125rem)] border shadow-md shadow-zinc-950/5 dark:[--color-muted:var(--color-zinc-900)]">
+                action={handleSubmit}
+                className="bg-white m-auto h-fit w-full max-w-sm overflow-hidden rounded-[calc(var(--radius)+.125rem)] border shadow-md shadow-zinc-950/5 dark:[--color-muted:var(--color-zinc-900)]">
                 <div className="bg-card -m-px rounded-[calc(var(--radius)+.125rem)] border p-8 pb-6">
                     <div className="text-center">
                         <Link
@@ -45,20 +64,21 @@ export default function LoginPage() {
                             <Label
                                 htmlFor="email"
                                 className="block text-sm">
-                                Username
+                                Email
                             </Label>
                             <Input
                                 type="email"
                                 required
                                 name="email"
                                 id="email"
+                                placeholder="user@gmail.com"
                             />
                         </div>
 
                         <div className="space-y-0.5">
                             <div className="flex items-center justify-between">
                                 <Label
-                                    htmlFor="pwd"
+                                    htmlFor="password"
                                     className="text-sm">
                                     Password
                                 </Label>
@@ -67,7 +87,7 @@ export default function LoginPage() {
                                     variant="link"
                                     size="sm">
                                     <Link
-                                        href="/forgot-password"
+                                        href="#"
                                         className="link intent-info variant-ghost text-sm">
                                         Forgot your Password ?
                                     </Link>
@@ -76,13 +96,20 @@ export default function LoginPage() {
                             <Input
                                 type="password"
                                 required
-                                name="pwd"
-                                id="pwd"
+                                name="password"
+                                id="password"
                                 className="input sz-md variant-mixed"
+                                placeholder="87654321"
                             />
                         </div>
 
-                        <Button type="submit" className="w-full">Sign In</Button>
+                        {error && (
+                            <div className="text-red-500 text-sm text-center">{error}</div>
+                        )}
+
+                        <Button className="w-full" disabled={loading}>
+                            {loading ? 'Signing In...' : 'Sign In'}
+                        </Button>
                     </div>
 
                     <div className="my-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -156,4 +183,3 @@ export default function LoginPage() {
         </section>
     )
 }
-
