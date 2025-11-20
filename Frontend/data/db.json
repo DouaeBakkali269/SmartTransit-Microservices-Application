@@ -1,107 +1,115 @@
 {
-    "users": [
-        {
-            "id": "1",
-            "name": "John Doe",
-            "email": "user@gmail.com",
-            "password": "87654321",
-            "role": "user",
-            "subscription": "basic"
-        },
-        {
-            "id": "2",
-            "name": "Jane Driver",
-            "email": "driver@gmail.com",
-            "password": "87654321",
-            "role": "driver",
-            "vehicleId": "bus-101"
-        },
-        {
-            "id": "3",
-            "name": "Admin User",
-            "email": "admin@gmail.com",
-            "password": "87654321",
-            "role": "admin"
-        }
-    ],
-    "lines": [
-        {
-            "id": "L1",
-            "number": "101",
-            "name": "Downtown - Airport",
-            "stations": [
-                "Central Station",
-                "Market Square",
-                "City Park",
-                "Airport Terminal 1"
-            ],
-            "schedule": "Every 15 mins"
-        },
-        {
-            "id": "L2",
-            "number": "102",
-            "name": "University - Mall",
-            "stations": [
-                "University Main Gate",
-                "Library",
-                "Tech Park",
-                "Grand Mall"
-            ],
-            "schedule": "Every 20 mins"
-        }
-    ],
-    "trips": [
-        {
-            "id": "T1",
-            "lineId": "L1",
-            "driverId": "2",
-            "status": "scheduled",
-            "startTime": "2023-10-27T08:00:00",
-            "endTime": "2023-10-27T09:00:00",
-            "currentStation": "Central Station",
-            "delay": 0
-        },
-        {
-            "id": "T2",
-            "lineId": "L2",
-            "driverId": "2",
-            "status": "in-progress",
-            "startTime": "2023-10-27T10:00:00",
-            "endTime": "2023-10-27T11:00:00",
-            "currentStation": "Library",
-            "delay": 5
-        }
-    ],
-    "tickets": [
-        {
-            "id": "TK1",
-            "userId": "1",
-            "tripId": "T1",
-            "purchaseDate": "2023-10-26T15:30:00",
-            "status": "active",
-            "price": 2.50
-        }
-    ],
-    "incidents": [
-        {
-            "id": "I1",
-            "driverId": "2",
-            "tripId": "T2",
-            "type": "Mechanical Issue",
-            "description": "Engine overheating",
-            "date": "2023-10-27T10:15:00",
-            "status": "open"
-        }
-    ],
-    "vehicles": [
-        {
-            "id": "bus-101",
-            "model": "Mercedes Citaro",
-            "plate": "AB-123-CD",
-            "fuelLevel": 75,
-            "autonomy": 450,
-            "engineStatus": "Good",
-            "temperature": 85
-        }
-    ]
+  "users": [
+    {
+      "id": "1",
+      "name": "John Doe",
+      "email": "user@gmail.com",
+      "password": "87654321",
+      "role": "user",
+      "subscription": "basic"
+    },
+    {
+      "id": "2",
+      "name": "Jane Driver",
+      "email": "driver@gmail.com",
+      "password": "87654321",
+      "role": "driver",
+      "vehicleId": "bus-101"
+    },
+    {
+      "id": "3",
+      "name": "Admin User",
+      "email": "admin@gmail.com",
+      "password": "87654321",
+      "role": "admin"
+    },
+    {
+      "id": "1763649648286",
+      "name": "Douae BAKKALI",
+      "email": "jean.dupont@example.com",
+      "password": "password123",
+      "role": "user",
+      "subscription": "none"
+    }
+  ],
+  "lines": [
+    {
+      "id": "L1",
+      "number": "101",
+      "name": "Downtown - Airport",
+      "stations": [
+        "Central Station",
+        "Market Square",
+        "City Park",
+        "Airport Terminal 1"
+      ],
+      "schedule": "Every 15 mins"
+    },
+    {
+      "id": "L2",
+      "number": "102",
+      "name": "University - Mall",
+      "stations": [
+        "University Main Gate",
+        "Library",
+        "Tech Park",
+        "Grand Mall"
+      ],
+      "schedule": "Every 20 mins"
+    }
+  ],
+  "trips": [
+    {
+      "id": "T1",
+      "lineId": "L1",
+      "driverId": "2",
+      "status": "scheduled",
+      "startTime": "2023-10-27T08:00:00",
+      "endTime": "2023-10-27T09:00:00",
+      "currentStation": "Central Station",
+      "delay": 0
+    },
+    {
+      "id": "T2",
+      "lineId": "L2",
+      "driverId": "2",
+      "status": "in-progress",
+      "startTime": "2023-10-27T10:00:00",
+      "endTime": "2023-10-27T11:00:00",
+      "currentStation": "Library",
+      "delay": 5
+    }
+  ],
+  "tickets": [
+    {
+      "id": "TK1",
+      "userId": "1",
+      "tripId": "T1",
+      "purchaseDate": "2023-10-26T15:30:00",
+      "status": "active",
+      "price": 2.5
+    }
+  ],
+  "incidents": [
+    {
+      "id": "I1",
+      "driverId": "2",
+      "tripId": "T2",
+      "type": "Mechanical Issue",
+      "description": "Engine overheating",
+      "date": "2023-10-27T10:15:00",
+      "status": "open"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "bus-101",
+      "model": "Mercedes Citaro",
+      "plate": "AB-123-CD",
+      "fuelLevel": 75,
+      "autonomy": 450,
+      "engineStatus": "Good",
+      "temperature": 85
+    }
+  ]
 }

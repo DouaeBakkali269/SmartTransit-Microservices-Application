@@ -1,19 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { User, Mail, CreditCard, Star, Check } from 'lucide-react';
+import { User, Mail, CreditCard, Star, Check, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 export default function ProfilePage() {
     const { user } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
-    const [subscription, setSubscription] = useState('basic');
+    const [currentPlan, setCurrentPlan] = useState('basic');
+    const [selectedPlan, setSelectedPlan] = useState('basic');
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+
+    useEffect(() => {
+        // Load subscription from localStorage
+        const saved = localStorage.getItem('userSubscription');
+        if (saved) {
+            setCurrentPlan(saved);
+            setSelectedPlan(saved);
+        }
+    }, []);
+
+    const handleUpdateSubscription = () => {
+        setIsUpdating(true);
+        // Simulate API call
+        setTimeout(() => {
+            localStorage.setItem('userSubscription', selectedPlan);
+            setCurrentPlan(selectedPlan);
+            setIsUpdating(false);
+            setShowSuccessBanner(true);
+            // Auto-hide after 4 seconds
+            setTimeout(() => setShowSuccessBanner(false), 4000);
+        }, 1000);
+    };
 
     if (!user) return null;
 
@@ -44,6 +69,28 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen bg-slate-50">
             <Navbar />
+
+            {/* Success Banner */}
+            {showSuccessBanner && (
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                    <div className="bg-green-100 border border-green-200 text-green-800 rounded-lg p-4 flex items-center gap-3 shadow-sm">
+                        <div className="flex-shrink-0">
+                            <Check className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-semibold">Subscription updated successfully!</p>
+                            <p className="text-sm text-green-700">Your new plan is now active.</p>
+                        </div>
+                        <button
+                            onClick={() => setShowSuccessBanner(false)}
+                            className="flex-shrink-0 text-green-600 hover:text-green-800"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-3xl font-bold text-slate-900 mb-8">My Profile</h1>
 
@@ -104,13 +151,13 @@ export default function ProfilePage() {
                                     {plans.map((plan) => (
                                         <div
                                             key={plan.id}
-                                            className={`relative rounded-lg border p-4 cursor-pointer transition-all ${subscription === plan.id
-                                                    ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
-                                                    : 'border-slate-200 hover:border-blue-300'
+                                            className={`relative rounded-lg border p-4 cursor-pointer transition-all ${selectedPlan === plan.id
+                                                ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
+                                                : 'border-slate-200 hover:border-blue-300'
                                                 }`}
-                                            onClick={() => setSubscription(plan.id)}
+                                            onClick={() => setSelectedPlan(plan.id)}
                                         >
-                                            {subscription === plan.id && (
+                                            {selectedPlan === plan.id && (
                                                 <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
                                                     <Check className="h-3 w-3" />
                                                 </div>
@@ -134,9 +181,14 @@ export default function ProfilePage() {
                             </CardContent>
                             <CardFooter className="bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                                 <div className="text-sm text-slate-500">
-                                    Current Plan: <span className="font-semibold text-slate-900 capitalize">{plans.find(p => p.id === subscription)?.name}</span>
+                                    Current Plan: <span className="font-semibold text-slate-900 capitalize">{plans.find(p => p.id === currentPlan)?.name}</span>
                                 </div>
-                                <Button disabled={subscription === 'basic'}>Update Subscription</Button>
+                                <Button
+                                    onClick={handleUpdateSubscription}
+                                    disabled={selectedPlan === currentPlan || isUpdating}
+                                >
+                                    {isUpdating ? 'Updating...' : 'Update Subscription'}
+                                </Button>
                             </CardFooter>
                         </Card>
 

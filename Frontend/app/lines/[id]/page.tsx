@@ -8,13 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Clock, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import locationsData from '@/data/rabat-locations.json';
 
-// Mock types
+// Dynamically import LineMap to avoid SSR issues
+const LineMap = dynamic(() => import('@/components/line-map').then(mod => ({ default: mod.LineMap })), { ssr: false });
+
+// Types
+type Station = {
+    name: string;
+    coordinates: [number, number];
+};
+
 type Line = {
     id: string;
     number: string;
     name: string;
-    stations: string[];
+    stations: Station[];
     schedule: string;
 };
 
@@ -24,21 +34,70 @@ export default function LineDetailPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Mock fetch line details
-        const mockLine = {
-            id: params.id as string,
-            number: params.id === 'L1' ? "101" : "102",
-            name: params.id === 'L1' ? "Downtown - Airport" : "University - Mall",
-            stations: params.id === 'L1'
-                ? ["Central Station", "Market Square", "City Park", "Airport Terminal 1"]
-                : ["University Main Gate", "Library", "Tech Park", "Grand Mall"],
-            schedule: params.id === 'L1' ? "Every 15 mins" : "Every 20 mins"
+        // Helper to find coordinates by name
+        const getCoords = (name: string): [number, number] => {
+            const loc = locationsData.locations.find(l => l.name === name);
+            return loc ? [loc.coordinates[0], loc.coordinates[1]] as [number, number] : [34.020882, -6.841650]; // Default to Rabat center
         };
 
-        setTimeout(() => {
+        // Mock fetch line details with real Rabat data
+        const fetchLine = () => {
+            const lineId = params.id as string;
+            let mockLine: Line | null = null;
+
+            if (lineId === 'L1') {
+                mockLine = {
+                    id: 'L1',
+                    number: '101',
+                    name: 'ENSIAS - Hassan Tower',
+                    stations: [
+                        { name: 'ENSIAS', coordinates: getCoords('ENSIAS') },
+                        { name: 'Mohammed V University', coordinates: getCoords('Mohammed V University') },
+                        { name: 'Agdal', coordinates: getCoords('Agdal') },
+                        { name: 'Jardin d\'Essais Botaniques', coordinates: getCoords('Jardin d\'Essais Botaniques') },
+                        { name: 'Place Pietri', coordinates: getCoords('Place Pietri') },
+                        { name: 'Rabat Ville Train Station', coordinates: getCoords('Rabat Ville Train Station') },
+                        { name: 'Hassan Tower', coordinates: getCoords('Hassan Tower') }
+                    ],
+                    schedule: 'Every 15 mins'
+                };
+            } else if (lineId === 'L2') {
+                mockLine = {
+                    id: 'L2',
+                    number: '102',
+                    name: 'Yacoub El Mansour - Marina',
+                    stations: [
+                        { name: 'Yacoub El Mansour', coordinates: getCoords('Yacoub El Mansour') },
+                        { name: 'Stade Moulay Abdallah', coordinates: getCoords('Stade Moulay Abdallah') },
+                        { name: 'Ocean', coordinates: getCoords('Ocean') },
+                        { name: 'Medina of Rabat', coordinates: getCoords('Medina of Rabat') },
+                        { name: 'Kasbah of the Udayas', coordinates: getCoords('Kasbah of the Udayas') },
+                        { name: 'Bouregreg Marina', coordinates: getCoords('Bouregreg Marina') }
+                    ],
+                    schedule: 'Every 20 mins'
+                };
+            } else if (lineId === 'L3') {
+                mockLine = {
+                    id: 'L3',
+                    number: '104',
+                    name: 'Hay Riad - Salé',
+                    stations: [
+                        { name: 'Hay Riad', coordinates: getCoords('Hay Riad') },
+                        { name: 'Mega Mall', coordinates: getCoords('Mega Mall') },
+                        { name: 'Souissi', coordinates: getCoords('Souissi') },
+                        { name: 'Hay Nahda', coordinates: getCoords('Hay Nahda') },
+                        { name: 'Rabat-Salé Airport', coordinates: getCoords('Rabat-Salé Airport') },
+                        { name: 'Salé', coordinates: getCoords('Salé') }
+                    ],
+                    schedule: 'Every 30 mins'
+                };
+            }
+
             setLine(mockLine);
             setLoading(false);
-        }, 500);
+        };
+
+        setTimeout(fetchLine, 500);
     }, [params.id]);
 
     if (loading) {
@@ -52,7 +111,19 @@ export default function LineDetailPage() {
         );
     }
 
-    if (!line) return <div>Line not found</div>;
+    if (!line) return (
+        <div className="min-h-screen bg-slate-50">
+            <Navbar />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="text-center py-12">
+                    <h2 className="text-2xl font-bold text-slate-900">Line not found</h2>
+                    <Link href="/lines">
+                        <Button className="mt-4">Back to Lines</Button>
+                    </Link>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -85,11 +156,11 @@ export default function LineDetailPage() {
                                         const isEnd = index === line.stations.length - 1;
 
                                         return (
-                                            <div key={station} className="relative">
+                                            <div key={station.name} className="relative">
                                                 <div className={`absolute -left-[41px] top-0 w-5 h-5 rounded-full border-4 border-white ${isStart ? 'bg-blue-500' : isEnd ? 'bg-red-500' : 'bg-slate-300'} shadow-sm`}></div>
                                                 <div className="flex justify-between items-center">
                                                     <span className={`font-medium ${isStart || isEnd ? 'text-slate-900' : 'text-slate-500'}`}>
-                                                        {station}
+                                                        {station.name}
                                                     </span>
                                                 </div>
                                             </div>
@@ -101,31 +172,13 @@ export default function LineDetailPage() {
                     </div>
 
                     <div className="lg:col-span-2">
-                        <Card className="h-[600px] overflow-hidden relative bg-slate-200">
-                            {/* Mock Map Background */}
-                            <div className="absolute inset-0 bg-[#e5e7eb] opacity-50"
-                                style={{
-                                    backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
-                                    backgroundSize: '20px 20px'
-                                }}>
-                            </div>
+                        <Card className="h-[600px] overflow-hidden relative bg-slate-100 border-0 shadow-md">
+                            <LineMap
+                                stations={line.stations}
+                                lineColor={line.id === 'L1' ? '#2563eb' : '#0891b2'}
+                            />
 
-                            {/* Decorative Map Elements */}
-                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                                <svg className="w-full h-full" viewBox="0 0 800 600">
-                                    {/* Route Line */}
-                                    <path d="M100,100 Q400,50 700,500" fill="none" stroke="#2563eb" strokeWidth="6" strokeDasharray="10,5" />
-
-                                    {/* Stations */}
-                                    <circle cx="100" cy="100" r="8" fill="#2563eb" stroke="white" strokeWidth="3" />
-                                    <text x="100" y="130" textAnchor="middle" className="text-xs font-bold fill-slate-700">Start</text>
-
-                                    <circle cx="700" cy="500" r="8" fill="#ef4444" stroke="white" strokeWidth="3" />
-                                    <text x="700" y="530" textAnchor="middle" className="text-xs font-bold fill-slate-700">End</text>
-                                </svg>
-                            </div>
-
-                            <div className="absolute top-4 right-4 bg-white p-3 rounded-lg shadow-md">
+                            <div className="absolute top-4 right-4 bg-white p-3 rounded-lg shadow-md z-[400]">
                                 <h4 className="font-semibold text-sm text-slate-900">Route Trajectory</h4>
                                 <p className="text-xs text-slate-500">Visual representation of the line path</p>
                             </div>
