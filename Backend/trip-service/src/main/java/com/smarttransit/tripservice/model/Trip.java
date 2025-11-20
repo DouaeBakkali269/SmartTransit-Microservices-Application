@@ -1,81 +1,61 @@
 package com.smarttransit.tripservice.model;
 
-import java.time.Instant;
+import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "trips")
 public class Trip {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private Long routeId;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "route_id")
+    private Route route;
 
-    @Column(nullable = false)
-    private Long vehicleId;
+    @ManyToOne
+    @JoinColumn(name = "schedule_id")
+    private Schedule schedule;
 
-    @Column(nullable = false)
-    private LocalDateTime departureTime;
+    private Long conducteurId;
+    private Long busId;
+    private LocalDate dateTrajet;
+    private LocalDateTime heureDepartReelle;
+    private LocalDateTime heureArriveeReelle;
+    private String statut; // e.g., PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+    private Integer nombrePassagers;
 
-    private LocalDateTime arrivalTime;
+    public Trip() {}
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private TripStatus status = TripStatus.SCHEDULED;
-
-    private Instant createdAt;
-    private Instant updatedAt;
-
-    @PrePersist
-    public void prePersist() {
-        createdAt = Instant.now();
-        updatedAt = createdAt;
-        if (status == null) {
-            status = TripStatus.SCHEDULED;
-        }
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public Long getRouteId() { return routeId; }
-    public void setRouteId(Long routeId) { this.routeId = routeId; }
-    public Long getVehicleId() { return vehicleId; }
-    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
-    public LocalDateTime getDepartureTime() { return departureTime; }
-    public void setDepartureTime(LocalDateTime departureTime) { this.departureTime = departureTime; }
-    public LocalDateTime getArrivalTime() { return arrivalTime; }
-    public void setArrivalTime(LocalDateTime arrivalTime) { this.arrivalTime = arrivalTime; }
-    public TripStatus getStatus() { return status; }
-    public void setStatus(TripStatus status) { this.status = status; }
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
-    public enum TripStatus {
-        SCHEDULED,
-        IN_PROGRESS,
-        COMPLETED,
-        CANCELLED
-    }
+    public Route getRoute() { return route; }
+    public void setRoute(Route route) { this.route = route; }
+
+    public Schedule getSchedule() { return schedule; }
+    public void setSchedule(Schedule schedule) { this.schedule = schedule; }
+
+    public Long getConducteurId() { return conducteurId; }
+    public void setConducteurId(Long conducteurId) { this.conducteurId = conducteurId; }
+
+    public Long getBusId() { return busId; }
+    public void setBusId(Long busId) { this.busId = busId; }
+
+    public LocalDate getDateTrajet() { return dateTrajet; }
+    public void setDateTrajet(LocalDate dateTrajet) { this.dateTrajet = dateTrajet; }
+
+    public LocalDateTime getHeureDepartReelle() { return heureDepartReelle; }
+    public void setHeureDepartReelle(LocalDateTime heureDepartReelle) { this.heureDepartReelle = heureDepartReelle; }
+
+    public LocalDateTime getHeureArriveeReelle() { return heureArriveeReelle; }
+    public void setHeureArriveeReelle(LocalDateTime heureArriveeReelle) { this.heureArriveeReelle = heureArriveeReelle; }
+
+    public String getStatut() { return statut; }
+    public void setStatut(String statut) { this.statut = statut; }
+
+    public Integer getNombrePassagers() { return nombrePassagers; }
+    public void setNombrePassagers(Integer nombrePassagers) { this.nombrePassagers = nombrePassagers; }
 }
