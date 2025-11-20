@@ -5,6 +5,7 @@ import com.smarttransit.vehicleservice.model.Vehicle.VehicleStatus;
 import com.smarttransit.vehicleservice.model.Vehicle.VehicleType;
 import com.smarttransit.vehicleservice.service.VehicleService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,13 +15,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/vehicles")
+@RequiredArgsConstructor
 public class VehicleController {
 
     private final VehicleService vehicleService;
-
-    public VehicleController(VehicleService vehicleService) {
-        this.vehicleService = vehicleService;
-    }
 
     @GetMapping
     public Page<VehicleDto> list(

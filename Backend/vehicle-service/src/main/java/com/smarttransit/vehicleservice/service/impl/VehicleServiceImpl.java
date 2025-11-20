@@ -1,11 +1,5 @@
 package com.smarttransit.vehicleservice.service.impl;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.smarttransit.vehicleservice.dto.VehicleDto;
 import com.smarttransit.vehicleservice.exception.ResourceNotFoundException;
 import com.smarttransit.vehicleservice.mapper.VehicleMapper;
@@ -14,20 +8,22 @@ import com.smarttransit.vehicleservice.model.Vehicle.VehicleStatus;
 import com.smarttransit.vehicleservice.model.Vehicle.VehicleType;
 import com.smarttransit.vehicleservice.repository.VehicleRepository;
 import com.smarttransit.vehicleservice.service.VehicleService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleRepository repository;
     private final VehicleMapper mapper;
-
-    public VehicleServiceImpl(VehicleRepository repository, VehicleMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
 
     @Override
     public Page<VehicleDto> findAll(int page, int size, String search) {
