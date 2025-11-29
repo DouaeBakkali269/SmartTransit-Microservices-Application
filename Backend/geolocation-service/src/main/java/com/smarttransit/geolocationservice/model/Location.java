@@ -1,4 +1,4 @@
-package com.smarttransit.userservice.model;
+package com.smarttransit.geolocationservice.model;
 
 import java.time.Instant;
 
@@ -15,36 +15,38 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "users")
+@Table(name = "locations")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Location {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
-    private String firstName;
+    private String name;
 
     @Column(nullable = false)
-    private String lastName;
+    private String type; // station|landmark|address
+    
+    // stored as numeric latitude and longitude (degrees)
+    private Double latitude;
+    private Double longitude;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    private String address;
 
-    private String phone;
+    private Long searchCount = 0L;
 
     private Instant createdAt;
     private Instant updatedAt;
-    // avatar URL (stored as string URL)
-    private String avatar;
 
     @PrePersist
     public void prePersist() {
         createdAt = Instant.now();
         updatedAt = createdAt;
+        if (searchCount == null) searchCount = 0L;
     }
 
     @PreUpdate

@@ -8,47 +8,38 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "users")
+@Table(name = "user_searches")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class UserSearch {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
-    private String firstName;
+    private Long userId;
 
-    @Column(nullable = false)
-    private String lastName;
+    private String fromLocation;
+    private String toLocation;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    // stored as "lat,lng" strings for simplicity (could be separate columns)
+    private String fromCoords;
+    private String toCoords;
 
-    private String phone;
+    private Instant date;
 
-    private Instant createdAt;
-    private Instant updatedAt;
-    // avatar URL (stored as string URL)
-    private String avatar;
+    private Instant searchedAt;
 
     @PrePersist
     public void prePersist() {
-        createdAt = Instant.now();
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = Instant.now();
+        searchedAt = Instant.now();
     }
 }

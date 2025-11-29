@@ -28,4 +28,6 @@ public class UserDto {
 
     private Instant createdAt;
     private Instant updatedAt;
+    // URL to avatar image (S3/MinIO or local upload)
+    private String avatar;
 }
