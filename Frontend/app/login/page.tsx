@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
-import { loginAction } from '@/lib/actions';
+import api from '@/lib/axios';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -20,23 +20,31 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
 
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
+
         try {
-            const result = await loginAction(formData);
-            if (result.success && result.user) {
-                login(result.user);
+            const response = await api.post('/auth/login', { email, password });
+
+            if (response.data.success) {
+                const { user, tokens } = response.data;
+                const userWithTokens = { ...user, tokens };
+                login(userWithTokens);
+
                 // Redirect based on role
-                if (result.user.role === 'driver') {
+                if (user.role === 'driver') {
                     router.push('/driver/current-trip');
-                } else if (result.user.role === 'admin') {
+                } else if (user.role === 'admin') {
                     router.push('/admin/dashboard');
                 } else {
                     router.push('/search');
                 }
             } else {
-                setError(result.error || 'Login failed');
+                setError(response.data.error || 'Login failed');
             }
-        } catch (err) {
-            setError('An unexpected error occurred');
+        } catch (err: any) {
+            console.error('Login error:', err);
+            setError(err.response?.data?.error || 'An unexpected error occurred');
         } finally {
             setLoading(false);
         }

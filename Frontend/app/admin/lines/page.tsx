@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, Clock, MapPin, ArrowLeft, Save, Bus, User, ArrowUp, ArrowDown, X } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
 // Dynamic import for the map editor
 const LineEditorMap = dynamic(() => import('@/components/line-editor-map').then(mod => mod.LineEditorMap), {
@@ -23,6 +25,7 @@ type Station = {
     id: string;
     name: string;
     coordinates: [number, number];
+    order?: number;
 };
 
 type Line = {
@@ -32,86 +35,108 @@ type Line = {
     stations: Station[];
     schedule: string;
     color: string;
+    status?: 'active' | 'inactive';
 };
 
-// Mock Data
-const MOCK_LINES: Line[] = [
-    {
-        id: "L1",
-        number: "101",
-        name: "Downtown - Airport",
-        color: "#3b82f6",
-        schedule: "Every 15 mins",
-        stations: [
-            { id: "s1", name: "Central Station", coordinates: [34.020882, -6.841650] },
-            { id: "s2", name: "Market Square", coordinates: [34.015000, -6.835000] },
-            { id: "s3", name: "City Park", coordinates: [34.010000, -6.830000] },
-            { id: "s4", name: "Airport Terminal 1", coordinates: [34.050000, -6.750000] }
-        ]
-    },
-    {
-        id: "L2",
-        number: "102",
-        name: "University - Mall",
-        color: "#ef4444",
-        schedule: "Every 20 mins",
-        stations: [
-            { id: "s5", name: "University Main Gate", coordinates: [33.980000, -6.850000] },
-            { id: "s6", name: "Library", coordinates: [33.985000, -6.855000] },
-            { id: "s7", name: "Tech Park", coordinates: [33.990000, -6.860000] },
-            { id: "s8", name: "Grand Mall", coordinates: [33.960000, -6.870000] }
-        ]
-    }
-];
-
 export default function ManageLinesPage() {
+    const { user } = useAuth();
     const [lines, setLines] = useState<Line[]>([]);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState<'list' | 'edit'>('list');
     const [editingLine, setEditingLine] = useState<Line | null>(null);
 
     useEffect(() => {
-        setTimeout(() => {
-            setLines(MOCK_LINES);
-            setLoading(false);
-        }, 500);
-    }, []);
+        const fetchLines = async () => {
+            try {
+                const response = await api.get('/admin/lines');
+                setLines(response.data.lines || []);
+            } catch (error) {
+                console.error("Error fetching lines:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (user?.role === 'admin') {
+            fetchLines();
+        }
+    }, [user]);
 
     const handleCreate = () => {
         const newLine: Line = {
-            id: `L${Date.now()}`,
+            id: '', // Will be assigned by backend
             number: "",
             name: "New Line",
             color: "#3b82f6",
             schedule: "",
-            stations: []
+            stations: [],
+            status: 'active'
         };
         setEditingLine(newLine);
         setView('edit');
     };
 
-    const handleEdit = (line: Line) => {
-        // Deep copy to avoid mutating state directly during edits
-        setEditingLine(JSON.parse(JSON.stringify(line)));
-        setView('edit');
-    };
-
-    const handleDelete = (id: string) => {
-        if (confirm("Are you sure you want to delete this line?")) {
-            setLines(lines.filter(l => l.id !== id));
+    const handleEdit = async (line: Line) => {
+        try {
+            // Fetch full details including stations if needed, or just use what we have
+            // For now, we assume the list endpoint returns enough info, or we could fetch details
+            const response = await api.get(`/admin/lines/${line.id}`);
+            setEditingLine(response.data.line);
+            setView('edit');
+        } catch (error) {
+            console.error("Error fetching line details:", error);
+            // Fallback to using the line object from the list if detail fetch fails
+            setEditingLine(JSON.parse(JSON.stringify(line)));
+            setView('edit');
         }
     };
 
-    const handleSave = () => {
+    const handleDelete = async (id: string) => {
+        if (confirm("Are you sure you want to delete this line?")) {
+            try {
+                await api.delete(`/admin/lines/${id}`);
+                setLines(lines.filter(l => l.id !== id));
+            } catch (error: any) {
+                console.error("Error deleting line:", error);
+                alert(error.response?.data?.error || "Failed to delete line");
+            }
+        }
+    };
+
+    const handleSave = async () => {
         if (!editingLine) return;
 
-        if (lines.find(l => l.id === editingLine.id)) {
-            setLines(lines.map(l => l.id === editingLine.id ? editingLine : l));
-        } else {
-            setLines([...lines, editingLine]);
+        try {
+            const lineData = {
+                number: editingLine.number,
+                name: editingLine.name,
+                color: editingLine.color,
+                schedule: editingLine.schedule,
+                stations: editingLine.stations.map((s, index) => ({
+                    name: s.name,
+                    coordinates: s.coordinates,
+                    order: index
+                })),
+                status: editingLine.status || 'active'
+            };
+
+            if (editingLine.id) {
+                // Update
+                const response = await api.put(`/admin/lines/${editingLine.id}`, lineData);
+                setLines(lines.map(l => l.id === editingLine.id ? response.data.line : l));
+                alert("Line updated successfully");
+            } else {
+                // Create
+                const response = await api.post('/admin/lines', lineData);
+                setLines([...lines, response.data.line]);
+                alert("Line created successfully");
+            }
+            setView('list');
+            setEditingLine(null);
+        } catch (error: any) {
+            console.error("Error saving line:", error);
+            alert(error.response?.data?.error || "Failed to save line");
         }
-        setView('list');
-        setEditingLine(null);
     };
 
     const updateStationName = (id: string, newName: string) => {
@@ -238,7 +263,7 @@ export default function ManageLinesPage() {
                                     <CardContent className="flex-1 overflow-y-auto p-0">
                                         <div className="divide-y divide-slate-100">
                                             {editingLine.stations.map((station, index) => (
-                                                <div key={station.id} className="p-3 hover:bg-slate-50 flex items-center gap-2 group">
+                                                <div key={station.id || index} className="p-3 hover:bg-slate-50 flex items-center gap-2 group">
                                                     <div className="flex flex-col gap-1 text-slate-400">
                                                         <button
                                                             onClick={() => moveStation(index, 'up')}
@@ -310,21 +335,11 @@ export default function ManageLinesPage() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
-                                            {[101, 102, 103].map(id => (
-                                                <div key={id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-white rounded flex items-center justify-center border border-slate-200">
-                                                            <Bus className="h-5 w-5 text-slate-500" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium text-slate-900">Bus #{id}</p>
-                                                            <p className="text-xs text-slate-500">Volvo 7900 Electric</p>
-                                                        </div>
-                                                    </div>
-                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
-                                                </div>
-                                            ))}
-                                            <Button variant="outline" className="w-full border-dashed">
+                                            {/* Placeholder for assigned buses */}
+                                            <div className="text-center py-4 text-slate-500 text-sm">
+                                                Vehicle assignment will be implemented in a future update.
+                                            </div>
+                                            <Button variant="outline" className="w-full border-dashed" disabled>
                                                 <Plus className="h-4 w-4 mr-2" /> Assign Bus
                                             </Button>
                                         </div>
@@ -340,21 +355,11 @@ export default function ManageLinesPage() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
-                                            {['Jane Driver', 'Mike Smith'].map((name, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                                            <User className="h-5 w-5 text-blue-600" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium text-slate-900">{name}</p>
-                                                            <p className="text-xs text-slate-500">ID: DRV-{100 + i}</p>
-                                                        </div>
-                                                    </div>
-                                                    <Button variant="ghost" size="sm">Manage</Button>
-                                                </div>
-                                            ))}
-                                            <Button variant="outline" className="w-full border-dashed">
+                                            {/* Placeholder for assigned drivers */}
+                                            <div className="text-center py-4 text-slate-500 text-sm">
+                                                Driver assignment will be implemented in a future update.
+                                            </div>
+                                            <Button variant="outline" className="w-full border-dashed" disabled>
                                                 <Plus className="h-4 w-4 mr-2" /> Assign Driver
                                             </Button>
                                         </div>
@@ -387,6 +392,8 @@ export default function ManageLinesPage() {
                     <CardContent>
                         {loading ? (
                             <div className="text-center py-8 text-slate-500">Loading lines...</div>
+                        ) : lines.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500">No lines found.</div>
                         ) : (
                             <Table>
                                 <TableHeader>

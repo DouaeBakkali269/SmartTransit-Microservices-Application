@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Edit, Trash2, User, Mail, Phone, Lock, Bus } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
-// Mock types
 type Driver = {
     id: string;
     name: string;
@@ -20,69 +21,138 @@ type Driver = {
     phone: string;
     status: 'active' | 'inactive';
     vehicleId?: string;
-    lineId?: string; // Added lineId
+    lineId?: string;
+    lineName?: string;
 };
 
-// Mock Lines
-const LINES = [
-    { id: 'L1', name: 'Line 1: Downtown Loop' },
-    { id: 'L2', name: 'Line 2: University Express' },
-    { id: 'L3', name: 'Line 3: Airport Shuttle' },
-];
+type Line = {
+    id: string;
+    number: string;
+    name: string;
+};
 
 export default function ManageDriversPage() {
+    const { user } = useAuth();
     const [drivers, setDrivers] = useState<Driver[]>([]);
+    const [lines, setLines] = useState<Line[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        lineId: 'unassigned',
+        password: '',
+        status: 'active' as 'active' | 'inactive'
+    });
 
     useEffect(() => {
-        // Mock fetch drivers
-        const mockDrivers: Driver[] = [
-            {
-                id: "2",
-                name: "Jane Driver",
-                email: "driver@gmail.com",
-                phone: "+1 (555) 123-4567",
-                status: "active",
-                vehicleId: "bus-101",
-                lineId: "L1"
-            },
-            {
-                id: "4",
-                name: "Mike Smith",
-                email: "mike@transitma.com",
-                phone: "+1 (555) 987-6543",
-                status: "inactive"
+        const fetchData = async () => {
+            try {
+                const [driversRes, linesRes] = await Promise.all([
+                    api.get('/admin/drivers'),
+                    api.get('/admin/lines')
+                ]);
+                setDrivers(driversRes.data.drivers || []);
+                setLines(linesRes.data.lines || []);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        setTimeout(() => {
-            setDrivers(mockDrivers);
-            setLoading(false);
-        }, 500);
-    }, []);
+        if (user?.role === 'admin') {
+            fetchData();
+        }
+    }, [user]);
 
-    const handleSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsDialogOpen(false);
-        alert(editingDriver ? "Driver updated successfully (including password if changed)" : "Driver created successfully");
-        setEditingDriver(null);
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        setFormData(prev => ({ ...prev, [id]: value }));
     };
 
-    const handleDelete = (id: string) => {
+    const handleSelectChange = (value: string) => {
+        setFormData(prev => ({ ...prev, lineId: value }));
+    };
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        try {
+            if (editingDriver) {
+                // Update existing driver
+                const updateData: any = {
+                    name: formData.name,
+                    phone: formData.phone,
+                    lineId: formData.lineId === 'unassigned' ? null : formData.lineId,
+                    status: formData.status
+                };
+
+                if (formData.password) {
+                    updateData.password = formData.password;
+                }
+
+                const response = await api.put(`/admin/drivers/${editingDriver.id}`, updateData);
+                setDrivers(drivers.map(d => d.id === editingDriver.id ? { ...d, ...response.data.driver } : d));
+                alert("Driver updated successfully");
+            } else {
+                // Create new driver
+                const createData = {
+                    name: formData.name,
+                    email: formData.email,
+                    phone: formData.phone,
+                    password: formData.password,
+                    lineId: formData.lineId === 'unassigned' ? null : formData.lineId
+                };
+
+                const response = await api.post('/admin/drivers', createData);
+                setDrivers([...drivers, response.data.driver]);
+                alert("Driver created successfully");
+            }
+            setIsDialogOpen(false);
+        } catch (error: any) {
+            console.error("Error saving driver:", error);
+            alert(error.response?.data?.error || "Failed to save driver");
+        }
+    };
+
+    const handleDelete = async (id: string) => {
         if (confirm("Are you sure you want to remove this driver?")) {
-            setDrivers(drivers.filter(d => d.id !== id));
+            try {
+                await api.delete(`/admin/drivers/${id}`);
+                setDrivers(drivers.filter(d => d.id !== id));
+            } catch (error: any) {
+                console.error("Error deleting driver:", error);
+                alert(error.response?.data?.error || "Failed to delete driver");
+            }
         }
     };
 
     const openEdit = (driver: Driver) => {
         setEditingDriver(driver);
+        setFormData({
+            name: driver.name,
+            email: driver.email,
+            phone: driver.phone,
+            lineId: driver.lineId || 'unassigned',
+            password: '',
+            status: driver.status
+        });
         setIsDialogOpen(true);
     };
 
     const openCreate = () => {
         setEditingDriver(null);
+        setFormData({
+            name: '',
+            email: '',
+            phone: '',
+            lineId: 'unassigned',
+            password: '',
+            status: 'active'
+        });
         setIsDialogOpen(true);
     };
 
@@ -110,28 +180,28 @@ export default function ManageDriversPage() {
                                 <div className="grid gap-4 py-4">
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="name" className="text-right">Name</Label>
-                                        <Input id="name" defaultValue={editingDriver?.name} className="col-span-3" required />
+                                        <Input id="name" value={formData.name} onChange={handleInputChange} className="col-span-3" required />
                                     </div>
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="email" className="text-right">Email</Label>
-                                        <Input id="email" type="email" defaultValue={editingDriver?.email} className="col-span-3" required />
+                                        <Input id="email" type="email" value={formData.email} onChange={handleInputChange} className="col-span-3" required disabled={!!editingDriver} />
                                     </div>
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="phone" className="text-right">Phone</Label>
-                                        <Input id="phone" defaultValue={editingDriver?.phone} className="col-span-3" />
+                                        <Input id="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" />
                                     </div>
 
                                     <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="line" className="text-right">Assigned Line</Label>
+                                        <Label htmlFor="lineId" className="text-right">Assigned Line</Label>
                                         <div className="col-span-3">
-                                            <Select defaultValue={editingDriver?.lineId || "unassigned"}>
+                                            <Select value={formData.lineId} onValueChange={handleSelectChange}>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select a line" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                                                    {LINES.map(line => (
-                                                        <SelectItem key={line.id} value={line.id}>{line.name}</SelectItem>
+                                                    {lines.map(line => (
+                                                        <SelectItem key={line.id} value={line.id}>{line.number} - {line.name}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
@@ -149,6 +219,8 @@ export default function ManageDriversPage() {
                                                 type="password"
                                                 placeholder={editingDriver ? "Leave blank to keep current" : "Set password"}
                                                 className="pl-9"
+                                                value={formData.password}
+                                                onChange={handleInputChange}
                                                 required={!editingDriver}
                                             />
                                         </div>
@@ -169,6 +241,8 @@ export default function ManageDriversPage() {
                     <CardContent>
                         {loading ? (
                             <div className="text-center py-8 text-slate-500">Loading drivers...</div>
+                        ) : drivers.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500">No drivers found.</div>
                         ) : (
                             <Table>
                                 <TableHeader>
@@ -206,7 +280,7 @@ export default function ManageDriversPage() {
                                             <TableCell>
                                                 {driver.lineId ? (
                                                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                        {LINES.find(l => l.id === driver.lineId)?.name.split(':')[0] || driver.lineId}
+                                                        {lines.find(l => l.id === driver.lineId)?.number || driver.lineName || driver.lineId}
                                                     </Badge>
                                                 ) : (
                                                     <span className="text-slate-400 text-xs italic">No Line</span>

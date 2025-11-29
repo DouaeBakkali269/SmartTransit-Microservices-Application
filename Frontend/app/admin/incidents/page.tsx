@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, CheckCircle, Clock, Eye, Bus, Map } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
-// Mock types
 type Incident = {
     id: string;
     tripId: string;
@@ -20,67 +21,62 @@ type Incident = {
     date: string;
     status: 'open' | 'investigating' | 'resolved';
     priority: 'low' | 'medium' | 'high';
-    line: string; // Added line
-    bus: string;  // Added bus
+    line: {
+        id: string;
+        number: string;
+        name: string;
+    };
+    bus: {
+        id: string;
+        number: string;
+    };
 };
 
 export default function ManageIncidentsPage() {
+    const { user } = useAuth();
     const [incidents, setIncidents] = useState<Incident[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     useEffect(() => {
-        // Mock fetch incidents
-        const mockIncidents: Incident[] = [
-            {
-                id: "I1",
-                tripId: "T2",
-                driverName: "Jane Driver",
-                type: "Mechanical Issue",
-                description: "Engine overheating warning light came on during uphill climb. Vehicle needs inspection.",
-                date: "2023-10-27T10:15:00",
-                status: "open",
-                priority: "high",
-                line: "Line 102",
-                bus: "BUS-101"
-            },
-            {
-                id: "I2",
-                tripId: "T5",
-                driverName: "Mike Smith",
-                type: "Traffic Delay",
-                description: "Heavy congestion due to road works on Main St. 15 min delay expected.",
-                date: "2023-10-20T08:30:00",
-                status: "resolved",
-                priority: "low",
-                line: "Line 5",
-                bus: "BUS-204"
-            },
-            {
-                id: "I3",
-                tripId: "T8",
-                driverName: "John Doe",
-                type: "Passenger Incident",
-                description: "Dispute between passengers regarding seating.",
-                date: "2023-10-26T16:45:00",
-                status: "investigating",
-                priority: "medium",
-                line: "Line 12",
-                bus: "BUS-305"
+        const fetchIncidents = async () => {
+            try {
+                const response = await api.get('/admin/incidents');
+                setIncidents(response.data.incidents || []);
+            } catch (error) {
+                console.error("Error fetching incidents:", error);
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        setTimeout(() => {
-            setIncidents(mockIncidents);
-            setLoading(false);
-        }, 500);
-    }, []);
+        if (user?.role === 'admin') {
+            fetchIncidents();
+        }
+    }, [user]);
 
-    const handleStatusChange = (status: string) => {
+    const handleStatusChange = async (status: string) => {
         if (selectedIncident) {
-            setIncidents(incidents.map(i => i.id === selectedIncident.id ? { ...i, status: status as any } : i));
-            setIsDialogOpen(false);
+            try {
+                const response = await api.put(`/admin/incidents/${selectedIncident.id}`, {
+                    status: status,
+                    // Preserve other fields if needed, but API usually only needs what's changing
+                    priority: selectedIncident.priority,
+                    adminNotes: "Status updated via admin panel"
+                });
+
+                // Update local state
+                const updatedIncident = { ...selectedIncident, status: status as any };
+                setIncidents(incidents.map(i => i.id === selectedIncident.id ? updatedIncident : i));
+                setSelectedIncident(updatedIncident);
+
+                // Optional: Close dialog or show success
+                // setIsDialogOpen(false); 
+            } catch (error) {
+                console.error("Error updating incident status:", error);
+                alert("Failed to update status");
+            }
         }
     };
 
@@ -120,6 +116,8 @@ export default function ManageIncidentsPage() {
                     <CardContent>
                         {loading ? (
                             <div className="text-center py-8 text-slate-500">Loading incidents...</div>
+                        ) : incidents.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500">No incidents found.</div>
                         ) : (
                             <Table>
                                 <TableHeader>
@@ -146,8 +144,8 @@ export default function ManageIncidentsPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col text-xs">
-                                                    <span className="font-medium">{incident.line}</span>
-                                                    <span className="text-slate-500">{incident.bus}</span>
+                                                    <span className="font-medium">{incident.line?.name || incident.line?.number || 'N/A'}</span>
+                                                    <span className="text-slate-500">{incident.bus?.number || 'N/A'}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>{incident.driverName}</TableCell>
@@ -213,7 +211,7 @@ export default function ManageIncidentsPage() {
                                             <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Vehicle</span>
                                             <span className="font-medium flex items-center gap-2">
                                                 <Bus className="w-4 h-4 text-slate-400" />
-                                                {selectedIncident.bus}
+                                                {selectedIncident.bus?.number || 'N/A'}
                                             </span>
                                         </div>
                                     </div>
@@ -222,7 +220,7 @@ export default function ManageIncidentsPage() {
                                             <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Line</span>
                                             <span className="font-medium flex items-center gap-2">
                                                 <Map className="w-4 h-4 text-slate-400" />
-                                                {selectedIncident.line}
+                                                {selectedIncident.line?.name || selectedIncident.line?.number || 'N/A'}
                                             </span>
                                         </div>
                                         <div>

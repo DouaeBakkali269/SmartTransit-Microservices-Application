@@ -5,59 +5,47 @@ import { Navbar } from '@/components/navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
-// Mock types
 type Trip = {
     id: string;
     lineId: string;
     startTime: string;
     endTime: string;
     status: 'completed' | 'cancelled';
-    line: { number: string; name: string };
+    line: {
+        number: string;
+        name: string;
+        color?: string;
+    };
     delay: number;
+    passengerCount?: number;
+    distance?: number;
+    duration?: number;
 };
 
 export default function DriverHistoryPage() {
+    const { user } = useAuth();
     const [trips, setTrips] = useState<Trip[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Mock fetch driver history
-        const mockTrips: Trip[] = [
-            {
-                id: "T1",
-                lineId: "L1",
-                startTime: "2023-10-26T08:00:00",
-                endTime: "2023-10-26T09:00:00",
-                status: "completed",
-                line: { number: "101", name: "Downtown - Airport" },
-                delay: 0
-            },
-            {
-                id: "T3",
-                lineId: "L2",
-                startTime: "2023-10-26T14:00:00",
-                endTime: "2023-10-26T15:00:00",
-                status: "completed",
-                line: { number: "102", name: "University - Mall" },
-                delay: 12
-            },
-            {
-                id: "T4",
-                lineId: "L1",
-                startTime: "2023-10-25T08:00:00",
-                endTime: "2023-10-25T09:00:00",
-                status: "cancelled",
-                line: { number: "101", name: "Downtown - Airport" },
-                delay: 0
+        const fetchHistory = async () => {
+            try {
+                const response = await api.get('/driver/trips/history');
+                setTrips(response.data.trips || []);
+            } catch (error) {
+                console.error("Error fetching trip history:", error);
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        setTimeout(() => {
-            setTrips(mockTrips);
-            setLoading(false);
-        }, 500);
-    }, []);
+        if (user?.role === 'driver') {
+            fetchHistory();
+        }
+    }, [user]);
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -68,6 +56,8 @@ export default function DriverHistoryPage() {
                 <div className="space-y-4">
                     {loading ? (
                         <div className="text-center py-12 text-slate-500">Loading history...</div>
+                    ) : trips.length === 0 ? (
+                        <div className="text-center py-12 text-slate-500">No trip history found.</div>
                     ) : trips.map((trip) => (
                         <Card key={trip.id} className="hover:shadow-md transition-shadow">
                             <CardContent className="p-6">
@@ -92,7 +82,7 @@ export default function DriverHistoryPage() {
                                                 </div>
                                                 <div className="flex items-center">
                                                     <Clock className="h-3 w-3 mr-1" />
-                                                    {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(trip.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {trip.endTime ? new Date(trip.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                                                 </div>
                                             </div>
                                         </div>

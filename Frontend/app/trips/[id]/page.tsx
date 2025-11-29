@@ -6,17 +6,10 @@ import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Bus, Calendar, Clock, MapPin, Footprints, ArrowLeft } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { calculateDistance } from '@/lib/distance';
-import rabatLocations from '@/data/rabat-locations.json';
+import api from '@/lib/axios';
 
 // Dynamically import TripMap
 const TripMap = dynamic(() => import('@/components/trip-map').then(mod => ({ default: mod.TripMap })), { ssr: false });
-
-// Location coordinates mapping
-const locationCoordinates: Record<string, [number, number]> = {};
-rabatLocations.locations.forEach(loc => {
-    locationCoordinates[loc.name.toUpperCase()] = [loc.coordinates[0], loc.coordinates[1]];
-});
 
 export default function TripDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -25,27 +18,9 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
     // Unwrap the params Promise
     const { id } = use(params);
 
-    // Parse trip details from URL params
-    const trip = {
-        id: id,
-        lineNumber: searchParams.get('line') || '',
-        operator: searchParams.get('operator') || '',
-        departureStation: searchParams.get('from') || '',
-        arrivalStation: searchParams.get('to') || '',
-        departureTime: searchParams.get('depTime') || '',
-        arrivalTime: searchParams.get('arrTime') || '',
-        duration: searchParams.get('duration') || '',
-        price: parseFloat(searchParams.get('price') || '0'),
-        services: searchParams.get('services')?.split(',') || [],
-        walkingDepDist: searchParams.get('walkDepDist'),
-        walkingDepDur: searchParams.get('walkDepDur'),
-        walkingArrDist: searchParams.get('walkArrDist'),
-        walkingArrDur: searchParams.get('walkArrDur'),
-    };
-
+    const [trip, setTrip] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
     const [userLocation, setUserLocation] = useState<[number, number]>([33.9715, -6.8498]);
-    const [startCoords, setStartCoords] = useState<[number, number] | null>(null);
-    const [endCoords, setEndCoords] = useState<[number, number] | null>(null);
 
     useEffect(() => {
         // Get user location
@@ -55,41 +30,27 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                 () => setUserLocation([33.9715, -6.8498])
             );
         }
+    }, []);
 
-        // Resolve coordinates
-        const resolveCoords = async (name: string) => {
-            // Try local data first
-            const local = locationCoordinates[name.toUpperCase()];
-            if (local) return local;
-
-            // Fallback to geocoding
+    useEffect(() => {
+        const fetchTrip = async () => {
             try {
-                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name + ' Rabat')}&limit=1`;
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data && data.length > 0) {
-                    return [parseFloat(data[0].lat), parseFloat(data[0].lon)] as [number, number];
-                }
-            } catch (e) {
-                console.error('Geocoding failed', e);
+                const response = await api.get(`/trips/${id}`);
+                setTrip(response.data.trip);
+            } catch (error) {
+                console.error("Error fetching trip:", error);
+            } finally {
+                setLoading(false);
             }
-            return null;
         };
-
-        if (trip.departureStation) {
-            resolveCoords(trip.departureStation).then(coords => {
-                if (coords) setStartCoords(coords);
-            });
-        }
-        if (trip.arrivalStation) {
-            resolveCoords(trip.arrivalStation).then(coords => {
-                if (coords) setEndCoords(coords);
-            });
-        }
-    }, [trip.departureStation, trip.arrivalStation]);
+        fetchTrip();
+    }, [id]);
 
     const handleBook = () => {
+        if (!trip) return;
+
         // Redirect to checkout page with trip details
+        // We pass minimal info or just ID if checkout supports fetching
         const params = new URLSearchParams({
             id: trip.id,
             line: trip.lineNumber,
@@ -100,10 +61,41 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
             arrTime: trip.arrivalTime,
             duration: trip.duration,
             price: trip.price.toString(),
-            date: searchParams.get('date') || new Date().toISOString().split('T')[0],
+            date: searchParams.get('date') || trip.date || new Date().toISOString().split('T')[0],
         });
         router.push(`/checkout?${params.toString()}`);
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="max-w-4xl mx-auto px-4 py-8 flex justify-center items-center h-[60vh]">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-slate-500">Loading trip details...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!trip) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+                    <h1 className="text-2xl font-bold text-slate-900">Trip not found</h1>
+                    <Button onClick={() => router.back()} className="mt-4">Go Back</Button>
+                </div>
+            </div>
+        );
+    }
+
+    // Extract coordinates
+    // Assuming API returns departureCoords/arrivalCoords or we get them from route stations
+    const startCoords = trip.departureCoords || (trip.route?.stations?.[0]?.coordinates) || null;
+    const endCoords = trip.arrivalCoords || (trip.route?.stations?.[trip.route.stations.length - 1]?.coordinates) || null;
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -146,14 +138,14 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                 <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-slate-200"></div>
 
                                 {/* Walking Departure */}
-                                {trip.walkingDepDist && (
+                                {trip.walkingDeparture && (
                                     <div className="relative flex items-start gap-4 pb-8">
                                         <div className="z-10 h-6 w-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center flex-shrink-0 mt-1">
                                             <Footprints className="h-3 w-3 text-slate-400" />
                                         </div>
                                         <div>
                                             <div className="font-medium text-slate-700 text-sm">Walk to station</div>
-                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingDepDist}km • {trip.walkingDepDur} min</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingDeparture.distance}km • {trip.walkingDeparture.duration} min</div>
                                         </div>
                                     </div>
                                 )}
@@ -177,7 +169,7 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                     <div className="text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
                                         <div className="font-medium">{trip.duration} Ride</div>
                                         <div className="text-xs text-slate-500 mt-1 flex gap-2">
-                                            {trip.services.map(s => <span key={s}>{s}</span>)}
+                                            {trip.services && trip.services.map((s: string) => <span key={s}>{s}</span>)}
                                         </div>
                                     </div>
                                 </div>
@@ -194,14 +186,14 @@ export default function TripDetailsPage({ params }: { params: Promise<{ id: stri
                                 </div>
 
                                 {/* Walking Arrival */}
-                                {trip.walkingArrDist && (
+                                {trip.walkingArrival && (
                                     <div className="relative flex items-start gap-4">
                                         <div className="z-10 h-6 w-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center flex-shrink-0 mt-1">
                                             <Footprints className="h-3 w-3 text-slate-400" />
                                         </div>
                                         <div>
                                             <div className="font-medium text-slate-700 text-sm">Walk to destination</div>
-                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingArrDist}km • {trip.walkingArrDur} min</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingArrival.distance}km • {trip.walkingArrival.duration} min</div>
                                         </div>
                                     </div>
                                 )}

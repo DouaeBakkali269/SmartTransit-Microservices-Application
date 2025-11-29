@@ -4,51 +4,75 @@ import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Calendar, Clock, CheckCircle2, CircleDashed } from 'lucide-react';
+import { AlertTriangle, Calendar, Clock, CheckCircle2, CircleDashed, Search } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
-// Mock types
 type Incident = {
     id: string;
     tripId: string;
     type: string;
     description: string;
     date: string;
-    status: 'open' | 'resolved';
-    line: { number: string };
+    status: 'open' | 'investigating' | 'resolved';
+    priority: 'low' | 'medium' | 'high';
+    line: {
+        number: string;
+        name: string;
+    };
+    bus: {
+        id: string;
+        number: string;
+    };
+    adminNotes?: string;
 };
 
 export default function DriverIncidentsPage() {
+    const { user } = useAuth();
     const [incidents, setIncidents] = useState<Incident[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Mock fetch incidents
-        const mockIncidents: Incident[] = [
-            {
-                id: "I1",
-                tripId: "T2",
-                type: "Mechanical Issue",
-                description: "Engine overheating warning light came on during uphill climb.",
-                date: "2023-10-27T10:15:00",
-                status: "open",
-                line: { number: "102" }
-            },
-            {
-                id: "I2",
-                tripId: "T5",
-                type: "Traffic Delay",
-                description: "Heavy congestion due to road works on Main St.",
-                date: "2023-10-20T08:30:00",
-                status: "resolved",
-                line: { number: "101" }
+        const fetchIncidents = async () => {
+            try {
+                const response = await api.get('/driver/incidents');
+                setIncidents(response.data.incidents || []);
+            } catch (error) {
+                console.error("Error fetching incidents:", error);
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        setTimeout(() => {
-            setIncidents(mockIncidents);
-            setLoading(false);
-        }, 500);
-    }, []);
+        if (user?.role === 'driver') {
+            fetchIncidents();
+        }
+    }, [user]);
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'open':
+                return (
+                    <Badge className="bg-red-500 hover:bg-red-600">
+                        <CircleDashed className="w-3 h-3 mr-1" /> Open
+                    </Badge>
+                );
+            case 'investigating':
+                return (
+                    <Badge className="bg-orange-500 hover:bg-orange-600">
+                        <Search className="w-3 h-3 mr-1" /> Investigating
+                    </Badge>
+                );
+            case 'resolved':
+                return (
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-200">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Resolved
+                    </Badge>
+                );
+            default:
+                return <Badge variant="secondary">{status}</Badge>;
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -59,6 +83,8 @@ export default function DriverIncidentsPage() {
                 <div className="space-y-4">
                     {loading ? (
                         <div className="text-center py-12 text-slate-500">Loading incidents...</div>
+                    ) : incidents.length === 0 ? (
+                        <div className="text-center py-12 text-slate-500">No incidents reported.</div>
                     ) : incidents.map((incident) => (
                         <Card key={incident.id} className="hover:shadow-md transition-shadow">
                             <CardHeader className="pb-2">
@@ -67,15 +93,9 @@ export default function DriverIncidentsPage() {
                                         <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">
                                             {incident.type}
                                         </Badge>
-                                        <span className="text-sm text-slate-500">Line {incident.line.number}</span>
+                                        <span className="text-sm text-slate-500">Line {incident.line.number} • Bus {incident.bus.number}</span>
                                     </div>
-                                    <Badge variant={incident.status === 'open' ? 'default' : 'secondary'} className={incident.status === 'open' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-100 text-green-700'}>
-                                        {incident.status === 'open' ? (
-                                            <><CircleDashed className="w-3 h-3 mr-1" /> Open</>
-                                        ) : (
-                                            <><CheckCircle2 className="w-3 h-3 mr-1" /> Resolved</>
-                                        )}
-                                    </Badge>
+                                    {getStatusBadge(incident.status)}
                                 </div>
                                 <CardTitle className="text-lg mt-2">Incident #{incident.id}</CardTitle>
                             </CardHeader>
@@ -83,6 +103,12 @@ export default function DriverIncidentsPage() {
                                 <p className="text-slate-700 mb-4 bg-slate-50 p-3 rounded-md border border-slate-100">
                                     {incident.description}
                                 </p>
+                                {incident.adminNotes && (
+                                    <div className="mb-4 bg-blue-50 p-3 rounded-md border border-blue-100 text-sm">
+                                        <span className="font-semibold text-blue-800 block mb-1">Admin Notes:</span>
+                                        <p className="text-blue-700">{incident.adminNotes}</p>
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-4 text-xs text-slate-500">
                                     <div className="flex items-center">
                                         <Calendar className="h-3 w-3 mr-1" />
