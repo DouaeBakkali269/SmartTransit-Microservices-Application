@@ -80,7 +80,7 @@ export const HeroHeader = () => {
                                     asChild
                                     variant="outline"
                                     size="sm"
-                                    className={cn(isScrolled && 'lg:hidden')}>
+                                    className={cn(isScrolled && 'lg:hidden', "border-zinc-200 text-zinc-900 hover:bg-zinc-100")}>
                                     <Link href="/login">
                                         <span>Login</span>
                                     </Link>
@@ -88,7 +88,7 @@ export const HeroHeader = () => {
                                 <Button
                                     asChild
                                     size="sm"
-                                    className={cn(isScrolled && 'lg:hidden')}>
+                                    className={cn(isScrolled && 'lg:hidden', "bg-slate-900 hover:bg-slate-800 text-white")}>
                                     <Link href="/signup">
                                         <span>Sign Up</span>
                                     </Link>
@@ -96,7 +96,7 @@ export const HeroHeader = () => {
                                 <Button
                                     asChild
                                     size="sm"
-                                    className={cn(isScrolled ? 'lg:inline-flex' : 'hidden')}>
+                                    className={cn(isScrolled ? 'lg:inline-flex' : 'hidden', "bg-slate-900 hover:bg-slate-800 text-white")}>
                                     <Link href="/signup">
                                         <span>Get Started</span>
                                     </Link>

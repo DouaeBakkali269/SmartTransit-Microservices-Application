@@ -178,7 +178,7 @@ export default function TicketDetailsPage() {
 
                     <div className="lg:col-span-1 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
                         <div className="text-sm text-slate-600 mb-3">Trip Map</div>
-                        <div className="h-72">
+                        <div className="h-[500px]">
                             {startCoords && endCoords ? (
                                 // TripMap shows user location, start, end and the routes
                                 <TripMap

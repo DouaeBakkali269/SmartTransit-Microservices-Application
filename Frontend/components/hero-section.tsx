@@ -103,7 +103,7 @@ export default function HeroSection() {
                                         <Button
                                             asChild
                                             size="lg"
-                                            className="rounded-xl px-5 text-base">
+                                            className="rounded-xl px-5 text-base bg-slate-900 hover:bg-slate-800 text-white">
                                             <Link href="/signup">
                                                 <span className="text-nowrap">Get Started</span>
                                             </Link>

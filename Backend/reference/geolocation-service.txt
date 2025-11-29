@@ -1,0 +1,18 @@
+SERVICE: Geolocation Service
+DESCRIPTION: Handles spatial data searching, address resolution, and nearby logic.
+
+OWNED DATA (SCHEMAS):
+- Locations (Search Cache)
+- (May rely on Route Service for Station coordinates, or syncs them via Kafka)
+
+API ENDPOINTS:
+GET /api/v1/locations/search
+    - Text search for stations/landmarks.
+    - External API calls (Google Maps/Mapbox) cached in 'Locations'.
+GET /api/v1/locations/popular
+    - Returns locations with high 'searchCount'.
+GET /api/v1/locations/nearby
+    - Returns items within 'radius' of 'lat/lng'.
+
+KAFKA EVENTS:
+- Consumes: `station.created` (From Route Service - to index station for search).

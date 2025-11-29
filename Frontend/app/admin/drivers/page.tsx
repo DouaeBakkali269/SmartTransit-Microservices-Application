@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, User, Mail, Phone } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Edit, Trash2, User, Mail, Phone, Lock, Bus } from 'lucide-react';
 
 // Mock types
 type Driver = {
@@ -19,7 +20,15 @@ type Driver = {
     phone: string;
     status: 'active' | 'inactive';
     vehicleId?: string;
+    lineId?: string; // Added lineId
 };
+
+// Mock Lines
+const LINES = [
+    { id: 'L1', name: 'Line 1: Downtown Loop' },
+    { id: 'L2', name: 'Line 2: University Express' },
+    { id: 'L3', name: 'Line 3: Airport Shuttle' },
+];
 
 export default function ManageDriversPage() {
     const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -36,7 +45,8 @@ export default function ManageDriversPage() {
                 email: "driver@gmail.com",
                 phone: "+1 (555) 123-4567",
                 status: "active",
-                vehicleId: "bus-101"
+                vehicleId: "bus-101",
+                lineId: "L1"
             },
             {
                 id: "4",
@@ -56,7 +66,7 @@ export default function ManageDriversPage() {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         setIsDialogOpen(false);
-        alert(editingDriver ? "Driver updated successfully" : "Driver created successfully");
+        alert(editingDriver ? "Driver updated successfully (including password if changed)" : "Driver created successfully");
         setEditingDriver(null);
     };
 
@@ -89,11 +99,11 @@ export default function ManageDriversPage() {
                                 Add New Driver
                             </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="max-w-lg">
                             <DialogHeader>
                                 <DialogTitle>{editingDriver ? 'Edit Driver' : 'Register New Driver'}</DialogTitle>
                                 <DialogDescription>
-                                    Enter the driver's personal information and credentials.
+                                    Manage driver details, line assignment, and credentials.
                                 </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleSave}>
@@ -109,6 +119,39 @@ export default function ManageDriversPage() {
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="phone" className="text-right">Phone</Label>
                                         <Input id="phone" defaultValue={editingDriver?.phone} className="col-span-3" />
+                                    </div>
+
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="line" className="text-right">Assigned Line</Label>
+                                        <div className="col-span-3">
+                                            <Select defaultValue={editingDriver?.lineId || "unassigned"}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a line" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                                                    {LINES.map(line => (
+                                                        <SelectItem key={line.id} value={line.id}>{line.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-slate-100 my-2"></div>
+
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="password" className="text-right">Password</Label>
+                                        <div className="col-span-3 relative">
+                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Input
+                                                id="password"
+                                                type="password"
+                                                placeholder={editingDriver ? "Leave blank to keep current" : "Set password"}
+                                                className="pl-9"
+                                                required={!editingDriver}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                                 <DialogFooter>
@@ -133,6 +176,7 @@ export default function ManageDriversPage() {
                                         <TableHead>Name</TableHead>
                                         <TableHead>Contact</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead>Assigned Line</TableHead>
                                         <TableHead>Vehicle</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
@@ -160,8 +204,20 @@ export default function ManageDriversPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
+                                                {driver.lineId ? (
+                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                        {LINES.find(l => l.id === driver.lineId)?.name.split(':')[0] || driver.lineId}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">No Line</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
                                                 {driver.vehicleId ? (
-                                                    <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded">{driver.vehicleId}</span>
+                                                    <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded flex items-center w-fit">
+                                                        <Bus className="h-3 w-3 mr-1 text-slate-500" />
+                                                        {driver.vehicleId}
+                                                    </span>
                                                 ) : (
                                                     <span className="text-slate-400 text-xs">Unassigned</span>
                                                 )}

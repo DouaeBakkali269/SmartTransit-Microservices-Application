@@ -1,0 +1,46 @@
+SERVICE: User Service
+DESCRIPTION: Manages user profiles, driver profiles, preferences, and search history.
+
+OWNED DATA (SCHEMAS):
+- Users
+- Drivers (Since drivers are users with specific roles/metadata)
+- UserSearches
+- UserLocations
+
+API ENDPOINTS:
+GET /api/v1/users/me
+    - Returns detailed user profile.
+PUT /api/v1/users/me
+    - Updates profile.
+POST /api/v1/users/me/avatar
+    - Uploads and updates avatar URL.
+GET /api/v1/users/me/searches/recent
+    - Returns search history from 'UserSearches'.
+POST /api/v1/users/me/searches
+    - Saves a search query.
+GET /api/v1/users/me/location
+    - Returns saved addresses (Home/Work).
+POST /api/v1/users/me/password
+    - Changes password (Authenticated).
+    
+GET /api/v1/admin/drivers
+    - Lists all drivers (Admin only).
+POST /api/v1/admin/drivers
+    - Creates a new driver profile.
+PUT /api/v1/admin/drivers/{driverId}
+    - Updates driver details.
+DELETE /api/v1/admin/drivers/{driverId}
+    - Soft deletes driver.
+    
+GET /api/v1/driver/profile
+    - Returns authenticated driver's specific data (license, tier).
+PUT /api/v1/driver/profile
+    - Updates driver contact info.
+GET /api/v1/driver/performance
+    - Aggregates performance data (Score, Tier).
+GET /api/v1/driver/stats
+    - Aggregates stats (Km driven, Trips count).
+
+KAFKA EVENTS:
+- Consumes: `trip.ended` (To update driver stats/performance), `user.registered` (If Auth service handles sign up).
+- Produces: `user.updated`, `driver.created`.

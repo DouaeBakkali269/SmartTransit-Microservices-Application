@@ -49,7 +49,7 @@ export default function TicketsPage() {
                             const qrCodeUrl = await QRCode.toDataURL(ticketUrl, {
                                 width: 300,
                                 margin: 2,
-                                color: { dark: '#7c3aed', light: '#ffffff' }
+                                color: { dark: '#2563eb', light: '#ffffff' }
                             });
                             return { ...ticket, qrCodeUrl };
                         }
@@ -143,7 +143,7 @@ export default function TicketsPage() {
                     <style>
                         body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; text-align: center; background-color: #f8fafc; }
                         .ticket-container { background: white; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 32px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-                        h1 { color: #4c1d95; margin: 0 0 8px 0; font-size: 24px; }
+                        h1 { color: #1e3a8a; margin: 0 0 8px 0; font-size: 24px; }
                         .ref { color: #64748b; font-size: 14px; margin-bottom: 24px; font-family: monospace; }
                         .route { font-size: 20px; font-weight: bold; color: #1e293b; margin-bottom: 8px; }
                         .time { font-size: 16px; color: #334155; margin-bottom: 24px; }
@@ -168,89 +168,83 @@ export default function TicketsPage() {
     };
 
     const TicketCard = ({ ticket }: { ticket: Ticket }) => (
-        <Card className="overflow-hidden hover:shadow-md transition-shadow">
-            <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-3">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                        <Bus className="h-3.5 w-3.5" />
-                        <span className="font-semibold text-xs">{ticket.operator} Line {ticket.lineNumber}</span>
+        <Card className="overflow-hidden hover:shadow-md transition-shadow border border-slate-200">
+            <div className="p-5 flex flex-col gap-4">
+                {/* Top Row: Operator & Status */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center">
+                            <Bus className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <div className="font-semibold text-slate-900 text-sm">{ticket.operator}</div>
+                            <div className="text-xs text-slate-500">Line {ticket.lineNumber}</div>
+                        </div>
                     </div>
-                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30 text-xs px-2 py-0">
+                    <Badge variant="outline" className={`
+                        ${ticket.status === 'active' ? 'border-green-200 text-green-700 bg-green-50' :
+                            ticket.status === 'exchanged' ? 'border-blue-200 text-blue-700 bg-blue-50' :
+                                ticket.status === 'cancelled' ? 'border-red-200 text-red-700 bg-red-50' :
+                                    'border-slate-200 text-slate-700 bg-slate-50'}
+                    `}>
                         {ticket.status === 'active' ? 'Active' :
                             ticket.status === 'exchanged' ? `Exchanged (${3 - ticket.exchangesRemaining}/3)` :
                                 ticket.status === 'cancelled' ? 'Cancelled' : 'Used'}
                     </Badge>
                 </div>
-                <div className="text-center">
-                    <div className="text-base font-bold mb-0.5">{ticket.departureStation} → {ticket.arrivalStation}</div>
-                    <div className="text-xs opacity-90">Ref: {ticket.bookingReference}</div>
-                </div>
-            </CardHeader>
 
-            <CardContent className="p-3">
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Date</div>
-                        <div className="font-semibold text-xs text-slate-900 flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-purple-600" />
-                            <span className="text-xs">{formatDate(ticket.date)}</span>
+                {/* Middle Row: Route & Time */}
+                <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="text-lg font-bold text-slate-900">{ticket.departureTime}</div>
+                            <div className="h-px flex-1 bg-slate-200 relative">
+                                <div className="absolute right-0 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-slate-300"></div>
+                            </div>
+                            <div className="text-lg font-bold text-slate-400">{ticket.arrivalTime}</div>
+                        </div>
+                        <div className="flex justify-between text-xs text-slate-500">
+                            <span>{ticket.departureStation}</span>
+                            <span>{ticket.arrivalStation}</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDate(ticket.date)}</span>
                         </div>
                     </div>
-                    <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Departure</div>
-                        <div className="font-semibold text-xs text-slate-900">{ticket.departureTime}</div>
-                    </div>
-                    <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Arrival</div>
-                        <div className="font-semibold text-xs text-slate-900">{ticket.arrivalTime}</div>
-                    </div>
-                    <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Price</div>
-                        <div className="font-semibold text-xs text-green-600">{ticket.price} DH</div>
+
+                    {/* QR Code (Small Preview) */}
+                    <div className="ml-4 p-1 bg-white border border-slate-100 rounded-lg shadow-sm">
+                        <img src={ticket.qrCodeUrl} alt="QR" className="w-16 h-16 opacity-90" />
                     </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-2 mb-2 text-center">
-                    <img src={ticket.qrCodeUrl} alt="QR Code" className="w-28 h-28 mx-auto mb-1" />
-                    <div className="flex items-center justify-center gap-1 text-xs text-slate-600">
-                        <QrCodeIcon className="h-3 w-3" />
-                        <span>Scan to verify</span>
+                {/* Bottom Row: Price & Actions */}
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+                    <div className="font-bold text-lg text-slate-900">{ticket.price} <span className="text-sm font-normal text-slate-500">DH</span></div>
+
+                    <div className="flex gap-2">
+                        <Button onClick={() => downloadTicket(ticket)} variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-blue-600">
+                            <Download className="h-4 w-4" />
+                        </Button>
+
+                        {(ticket.status === 'active' || ticket.status === 'exchanged') && (
+                            <>
+                                <Button onClick={() => handleExchangeTicket(ticket)} disabled={ticket.exchangesRemaining <= 0} variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-blue-600">
+                                    <RefreshCw className="h-4 w-4" />
+                                </Button>
+                                <Button onClick={() => handleCancelTicket(ticket)} variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-600">
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </>
+                        )}
+
+                        <Button onClick={() => router.push(`/tickets/${ticket.id}`)} size="sm" className="bg-slate-900 hover:bg-slate-800 text-white h-8 px-4 rounded-full text-xs">
+                            Details
+                        </Button>
                     </div>
                 </div>
-
-                {(ticket.status === 'active' || ticket.status === 'exchanged') && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-1.5 mb-2">
-                        <div className="flex items-center gap-1.5 text-xs text-blue-800">
-                            <RefreshCw className="h-3 w-3" />
-                            <span>{ticket.exchangesRemaining} exchange{ticket.exchangesRemaining !== 1 ? 's' : ''} remaining</span>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-
-            <CardFooter className="bg-slate-50 border-t border-slate-200 p-2">
-                <div className="flex gap-1.5 w-full">
-                    <Button onClick={() => downloadTicket(ticket)} variant="outline" size="sm" className="flex-1 text-xs h-7 px-2">
-                        <Download className="h-3 w-3 mr-1" />
-                        Download
-                    </Button>
-                    <Button onClick={() => router.push(`/tickets/${ticket.id}`)} variant="ghost" size="sm" className="flex-1 text-xs h-7 px-2">
-                        Details
-                    </Button>
-                    {(ticket.status === 'active' || ticket.status === 'exchanged') && (
-                        <>
-                            <Button onClick={() => handleExchangeTicket(ticket)} disabled={ticket.exchangesRemaining <= 0} size="sm" className="flex-1 bg-purple-700 hover:bg-purple-800 text-white text-xs h-7 px-2">
-                                <RefreshCw className="h-3 w-3 mr-1" />
-                                Exchange
-                            </Button>
-                            <Button onClick={() => handleCancelTicket(ticket)} variant="outline" size="sm" className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-7 px-2">
-                                <X className="h-3 w-3 mr-1" />
-                                Cancel
-                            </Button>
-                        </>
-                    )}
-                </div>
-            </CardFooter>
+            </div>
         </Card>
     );
 
@@ -260,7 +254,7 @@ export default function TicketsPage() {
                 <Navbar />
                 <div className="flex items-center justify-center h-[calc(100vh-80px)]">
                     <div className="text-center">
-                        <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-purple-600 border-r-transparent"></div>
+                        <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
                         <p className="text-slate-500 mt-4">Loading your tickets...</p>
                     </div>
                 </div>
@@ -300,12 +294,12 @@ export default function TicketsPage() {
                     <TabsContent value="upcoming" className="space-y-6">
                         {upcomingTickets.length === 0 ? (
                             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-                                <div className="w-24 h-24 mx-auto mb-6 bg-purple-100 rounded-full flex items-center justify-center">
-                                    <Bus className="h-12 w-12 text-purple-600" />
+                                <div className="w-24 h-24 mx-auto mb-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <Bus className="h-12 w-12 text-blue-600" />
                                 </div>
                                 <h2 className="text-2xl font-bold text-slate-900 mb-2">No upcoming trips</h2>
                                 <p className="text-slate-600 mb-6">Book your next bus trip to see your tickets here</p>
-                                <Button onClick={() => router.push('/search')} className="bg-purple-700 hover:bg-purple-800 text-white">Book a Trip</Button>
+                                <Button onClick={() => router.push('/search')} className="bg-blue-600 hover:bg-blue-700 text-white">Book a Trip</Button>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -350,7 +344,7 @@ export default function TicketsPage() {
                         </div>
                         <div className="flex gap-3">
                             <Button onClick={() => { setShowExchangeWarning(false); setSelectedTicket(null); }} variant="outline" className="flex-1">Cancel</Button>
-                            <Button onClick={confirmExchange} className="flex-1 bg-purple-700 hover:bg-purple-800 text-white">Choose New Time</Button>
+                            <Button onClick={confirmExchange} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">Choose New Time</Button>
                         </div>
                     </div>
                 </div>

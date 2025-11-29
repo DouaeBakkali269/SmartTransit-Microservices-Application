@@ -160,7 +160,7 @@ export function PaymentModal({ isOpen, onClose, cartItems, total, travelDate }: 
                                 </div>
                                 <div className="flex justify-between pt-2 border-t border-slate-300">
                                     <span className="font-bold text-slate-900">Total Amount</span>
-                                    <span className="font-bold text-purple-700 text-lg">{total} DH</span>
+                                    <span className="font-bold text-green-600 text-lg">{total} DH</span>
                                 </div>
                             </div>
                         </div>
@@ -266,7 +266,7 @@ export function PaymentModal({ isOpen, onClose, cartItems, total, travelDate }: 
                                 </Button>
                                 <Button
                                     type="submit"
-                                    className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                                 >
                                     Pay {total} DH
                                 </Button>
@@ -318,7 +318,7 @@ export function PaymentModal({ isOpen, onClose, cartItems, total, travelDate }: 
 
                             <Button
                                 onClick={handleDone}
-                                className="w-full bg-purple-700 hover:bg-purple-800 text-white"
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                             >
                                 View My Tickets
                             </Button>

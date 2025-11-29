@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Bus, LogOut, User, Map, Ticket, LayoutDashboard, Car, AlertTriangle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { Logo } from '@/components/logo';
 
 export function Navbar() {
     const { user, logout } = useAuth();
@@ -20,11 +21,8 @@ export function Navbar() {
                 <div className="flex justify-between h-16">
                     <div className="flex">
                         <div className="flex-shrink-0 flex items-center">
-                            <Link href="/" className="flex items-center gap-2">
-                                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                                    <Bus className="h-5 w-5 text-white" />
-                                </div>
-                                <span className="font-bold text-xl text-slate-900">TransitMA</span>
+                            <Link href="/">
+                                <Logo />
                             </Link>
                         </div>
                         <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -75,8 +73,8 @@ function NavLink({ href, active, children, icon }: { href: string; active: boole
         <Link
             href={href}
             className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${active
-                    ? 'border-blue-500 text-slate-900'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                ? 'border-blue-500 text-slate-900'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                 }`}
         >
             {icon}

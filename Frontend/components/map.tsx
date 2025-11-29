@@ -1,9 +1,9 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { reverseGeocode, type Location } from '@/lib/geolocation';
 
 // Fix for default marker icon
@@ -36,6 +36,7 @@ interface MapProps {
     onLocationSelect?: (lat: number, lng: number, name: string, address: string) => void;
     clickable?: boolean;
     markers?: Array<{ position: [number, number]; name: string; address?: string }>;
+    route?: { start: [number, number]; end: [number, number] } | null;
 }
 
 function MapClickHandler({ onLocationSelect }: { onLocationSelect?: (lat: number, lng: number, name: string, address: string) => void }) {
@@ -67,13 +68,64 @@ function MapClickHandler({ onLocationSelect }: { onLocationSelect?: (lat: number
     ) : null;
 }
 
+function RouteLayer({ start, end }: { start: [number, number]; end: [number, number] }) {
+    const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+    const map = useMapEvents({});
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchRoute = async () => {
+            try {
+                const response = await fetch(
+                    `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
+                );
+                const data = await response.json();
+
+                if (isMounted && data.routes && data.routes.length > 0) {
+                    const coords = data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+                    setRouteCoords(coords);
+
+                    // Fit bounds to route
+                    const bounds = L.latLngBounds(coords);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                } else if (isMounted) {
+                    // Fallback to straight line
+                    setRouteCoords([start, end]);
+                    map.fitBounds(L.latLngBounds([start, end]), { padding: [50, 50] });
+                }
+            } catch (error) {
+                console.error("Failed to fetch route:", error);
+                if (isMounted) {
+                    setRouteCoords([start, end]);
+                }
+            }
+        };
+
+        fetchRoute();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [start, end, map]);
+
+    if (routeCoords.length === 0) return null;
+
+    return (
+        <Polyline
+            positions={routeCoords}
+            pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.8 }}
+        />
+    );
+}
+
 export default function Map({
     center = [33.9716, -6.8498], // Default to ENSIAS, Rabat
     zoom = 13,
     selectedLocation,
     onLocationSelect,
     clickable = false,
-    markers = []
+    markers = [],
+    route
 }: MapProps) {
     const [mapCenter, setMapCenter] = useState<[number, number]>(center);
 
@@ -109,6 +161,9 @@ export default function Map({
             />
 
             {clickable && <MapClickHandler onLocationSelect={onLocationSelect} />}
+
+            {/* Route Layer */}
+            {route && <RouteLayer start={route.start} end={route.end} />}
 
             {/* Selected location marker */}
             {selectedLocation && (

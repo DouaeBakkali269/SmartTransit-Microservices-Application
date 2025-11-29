@@ -1,0 +1,21 @@
+SERVICE: Payment Service
+DESCRIPTION: Handles financial transactions, gateways, and user wallets.
+
+OWNED DATA (SCHEMAS):
+- Payments
+- (Uses 'Users' table purely for Wallet Balance field, or maintains a separate Wallets table)
+
+API ENDPOINTS:
+POST /api/v1/payments/process
+    - Initiates payment with provider (Stripe/CMI/etc).
+POST /api/v1/payments/webhook
+    - Async callback from payment provider.
+
+GET /api/v1/users/me/wallet
+    - Returns balance.
+POST /api/v1/wallet/pay
+    - Pay for booking using internal wallet balance.
+
+KAFKA EVENTS:
+- Consumes: `booking.created` (To prepare payment context).
+- Produces: `payment.success`, `payment.failed`, `wallet.debited`.

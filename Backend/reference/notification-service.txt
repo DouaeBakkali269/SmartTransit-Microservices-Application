@@ -1,0 +1,15 @@
+SERVICE: Notification Service
+DESCRIPTION: Stateless service responsible for sending Emails, SMS, and Push Notifications.
+
+OWNED DATA:
+- None (or Notification Logs)
+
+API ENDPOINTS:
+- None exposed directly to frontend.
+
+KAFKA EVENTS:
+- Consumes: 
+    - `auth.password.reset-requested` -> Sends Email.
+    - `ticket.issued` -> Sends Ticket Email with QR attachment.
+    - `trip.delayed` -> Sends Push Notification to passengers.
+    - `payment.failed` -> Sends Alert.

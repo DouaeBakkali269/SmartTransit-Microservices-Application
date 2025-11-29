@@ -378,6 +378,10 @@ export default function SearchPage() {
                                 address: toLocation.address
                             }] : [])
                         ]}
+                        route={fromLocation && toLocation ? {
+                            start: fromLocation.coordinates as [number, number],
+                            end: toLocation.coordinates as [number, number]
+                        } : null}
                     />
                 </div>
             </div>

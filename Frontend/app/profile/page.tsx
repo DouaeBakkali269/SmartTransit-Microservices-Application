@@ -94,7 +94,7 @@ export default function ProfilePage() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-3xl font-bold text-slate-900 mb-8">My Profile</h1>
 
-                <div className="grid gap-8 md:grid-cols-3">
+                <div className={`grid gap-8 ${user.role === 'user' ? 'md:grid-cols-3' : 'max-w-md mx-auto'}`}>
                     {/* User Info Card */}
                     <div className="md:col-span-1">
                         <Card>
@@ -136,7 +136,10 @@ export default function ProfilePage() {
                         </Card>
                     </div>
 
-                    {/* Subscription Section */}
+                </div>
+
+                {/* Subscription Section - Only for Users */}
+                {user.role === 'user' && (
                     <div className="md:col-span-2 space-y-6">
                         <Card>
                             <CardHeader>
@@ -217,8 +220,9 @@ export default function ProfilePage() {
                             </CardContent>
                         </Card>
                     </div>
-                </div>
+                )}
             </div>
         </div>
+
     );
 }

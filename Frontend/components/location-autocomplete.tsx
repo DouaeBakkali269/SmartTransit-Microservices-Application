@@ -118,7 +118,7 @@ export function LocationAutocomplete({
 
     const getLocationTypeColor = (type: string) => {
         const colors: Record<string, string> = {
-            university: 'text-purple-600 bg-purple-50',
+            university: 'text-blue-600 bg-blue-50',
             neighborhood: 'text-blue-600 bg-blue-50',
             landmark: 'text-green-600 bg-green-50',
             transport: 'text-orange-600 bg-orange-50',

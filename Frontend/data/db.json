@@ -30,6 +30,14 @@
       "password": "password123",
       "role": "user",
       "subscription": "none"
+    },
+    {
+      "id": "1764191034038",
+      "name": "Omar Behri",
+      "email": "omarbehri1@gmail.com",
+      "password": "87654321",
+      "role": "user",
+      "subscription": "none"
     }
   ],
   "lines": [
