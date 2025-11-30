@@ -5,7 +5,7 @@ import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Bus } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { PaymentModal } from '@/components/payment-modal';
+
 import {
     Dialog,
     DialogContent,
@@ -41,7 +41,7 @@ function ResultsContent() {
     const [trips, setTrips] = useState<Trip[]>([]);
     const [loading, setLoading] = useState(true);
     const [cartItems, setCartItems] = useState<Trip[]>([]);
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
+
     const [userLocation, setUserLocation] = useState<[number, number]>([33.9715, -6.8498]);
     const [exchangingTicket, setExchangingTicket] = useState<any>(null);
     const [showConfirmExchange, setShowConfirmExchange] = useState(false);
@@ -288,7 +288,10 @@ function ResultsContent() {
 
                                 {cartItems.length > 0 && (
                                     <Button
-                                        onClick={() => setShowPaymentModal(true)}
+                                        onClick={() => {
+                                            localStorage.setItem('checkoutCart', JSON.stringify(cartItems));
+                                            router.push('/checkout');
+                                        }}
                                         className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all"
                                     >
                                         Continue to Payment
@@ -300,17 +303,7 @@ function ResultsContent() {
                 </div>
             </div>
 
-            {/* Payment Modal */}
-            <PaymentModal
-                isOpen={showPaymentModal}
-                onClose={() => {
-                    setShowPaymentModal(false);
-                    setCartItems([]);
-                }}
-                cartItems={cartItems}
-                total={cartTotal}
-                travelDate={date}
-            />
+
 
             {/* Confirm Exchange Dialog */}
             <Dialog open={showConfirmExchange} onOpenChange={(open) => { if (!open) setShowConfirmExchange(false); }}>

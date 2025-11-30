@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,21 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Bus, Calendar, Clock, MapPin, CreditCard, Smartphone, Building2, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Bus, Calendar, Clock, CreditCard, Smartphone, Building2, CheckCircle2, ArrowLeft, Trash2 } from 'lucide-react';
 import api from '@/lib/axios';
+
+type Trip = {
+    id: string;
+    lineNumber: string;
+    operator: string;
+    departureStation: string;
+    arrivalStation: string;
+    departureTime: string;
+    arrivalTime: string;
+    duration: string;
+    price: number;
+    date: string;
+};
 
 export default function CheckoutPage() {
     return (
@@ -31,76 +44,104 @@ function CheckoutContent() {
     const [cvv, setCvv] = useState('');
     const [cardName, setCardName] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [cartItems, setCartItems] = useState<Trip[]>([]);
+    const [bookingReference, setBookingReference] = useState('');
 
-    // Parse trip details from URL params
-    const trip = {
-        id: searchParams.get('id') || '',
-        lineNumber: searchParams.get('line') || '',
-        operator: searchParams.get('operator') || '',
-        departureStation: searchParams.get('from') || '',
-        arrivalStation: searchParams.get('to') || '',
-        departureTime: searchParams.get('depTime') || '',
-        arrivalTime: searchParams.get('arrTime') || '',
-        duration: searchParams.get('duration') || '',
-        price: parseFloat(searchParams.get('price') || '0'),
-        date: searchParams.get('date') || new Date().toISOString().split('T')[0],
-    };
+    useEffect(() => {
+        // Try to get items from localStorage first
+        const storedCart = localStorage.getItem('checkoutCart');
+        if (storedCart) {
+            try {
+                const items = JSON.parse(storedCart);
+                if (Array.isArray(items) && items.length > 0) {
+                    setCartItems(items);
+                    // Clear the cart from storage so it doesn't persist if they go back and forth
+                    // Actually, better to keep it until payment success or manual removal
+                    // localStorage.removeItem('checkoutCart'); 
+                    return;
+                }
+            } catch (e) {
+                console.error("Failed to parse cart items", e);
+            }
+        }
 
-    const totalPrice = trip.price * passengers;
+        // Fallback to URL params if no cart items
+        const id = searchParams.get('id');
+        if (id) {
+            const trip: Trip = {
+                id: id,
+                lineNumber: searchParams.get('line') || '',
+                operator: searchParams.get('operator') || '',
+                departureStation: searchParams.get('from') || '',
+                arrivalStation: searchParams.get('to') || '',
+                departureTime: searchParams.get('depTime') || '',
+                arrivalTime: searchParams.get('arrTime') || '',
+                duration: searchParams.get('duration') || '',
+                price: parseFloat(searchParams.get('price') || '0'),
+                date: searchParams.get('date') || new Date().toISOString().split('T')[0],
+            };
+            setCartItems([trip]);
+        }
+    }, [searchParams]);
+
+    const totalPrice = cartItems.reduce((sum, item) => sum + item.price, 0) * (cartItems.length === 1 ? passengers : 1);
 
     // Format card number with spaces every 4 digits
     const formatCardNumber = (value: string) => {
-        // Remove all non-digits
         const digits = value.replace(/\D/g, '');
-        // Limit to 16 digits
         const limited = digits.slice(0, 16);
-        // Add space every 4 digits
         const formatted = limited.match(/.{1,4}/g)?.join(' ') || limited;
         return formatted;
     };
 
     // Format expiry date as MM/YY
     const formatExpiryDate = (value: string) => {
-        // Remove all non-digits
         const digits = value.replace(/\D/g, '');
-        // Limit to 4 digits (MMYY)
         const limited = digits.slice(0, 4);
-
         if (limited.length >= 3) {
-            // Add slash after MM
             return limited.slice(0, 2) + '/' + limited.slice(2);
         }
         return limited;
     };
 
     const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const formatted = formatCardNumber(e.target.value);
-        setCardNumber(formatted);
+        setCardNumber(formatCardNumber(e.target.value));
     };
 
     const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const formatted = formatExpiryDate(e.target.value);
-        setExpiryDate(formatted);
+        setExpiryDate(formatExpiryDate(e.target.value));
     };
 
     const handlePayment = async () => {
         setIsProcessing(true);
 
         try {
-            // 1. Create Booking
-            const bookingRes = await api.post('/bookings', {
-                tripId: trip.id,
-                date: trip.date,
-                passengers: passengers
-            });
+            const bookings = [];
 
-            if (!bookingRes.data.booking?.id) {
-                throw new Error('Failed to create booking');
+            // Create a booking for each item
+            for (const item of cartItems) {
+                // If single item, use selected passengers, otherwise 1
+                const numPassengers = cartItems.length === 1 ? passengers : 1;
+
+                const bookingRes = await api.post('/bookings', {
+                    tripId: item.id,
+                    date: item.date,
+                    passengers: numPassengers
+                });
+
+                if (!bookingRes.data.booking?.id) {
+                    throw new Error(`Failed to create booking for ${item.departureStation} to ${item.arrivalStation}`);
+                }
+                bookings.push(bookingRes.data.booking.id);
             }
 
-            const bookingId = bookingRes.data.booking.id;
+            // Process Payment (Simulated for now as one transaction for all bookings)
+            // In a real app, we might bundle them or process individually. 
+            // Here we'll just process the first one or a "bulk" payment if API supported it.
+            // Assuming the API handles one payment per booking, we might need to loop.
+            // But let's assume we just need to verify payment once for the total amount.
 
-            // 2. Process Payment
+            // For this demo, we'll process payment for the first booking ID as a reference
             const paymentDetails: any = {};
             if (paymentMethod === 'card') {
                 paymentDetails.cardNumber = cardNumber.replace(/\s/g, '');
@@ -109,23 +150,51 @@ function CheckoutContent() {
                 paymentDetails.cvv = cvv;
             } else if (paymentMethod === 'mobile') {
                 paymentDetails.phoneNumber = phoneNumber;
-                paymentDetails.provider = 'orange'; // Default or add selector
+                paymentDetails.provider = 'orange';
             } else if (paymentMethod === 'bank') {
                 paymentDetails.bankAccount = 'manual_transfer';
             }
 
+            // We'll use the first booking ID for the payment record
             const paymentRes = await api.post('/payments/process', {
-                bookingId,
+                bookingId: bookings[0],
                 paymentMethod,
-                paymentDetails
+                paymentDetails,
+                amount: totalPrice // Optional if API supports overriding amount
             });
 
             if (paymentRes.data.success) {
+                // Generate a reference for display
+                const ref = `BK${Date.now().toString().slice(-8)}`;
+                setBookingReference(ref);
+
+                // Save tickets to localStorage (Client-side simulation of ticket generation)
+                const existingTickets = JSON.parse(localStorage.getItem('userTickets') || '[]');
+                const newTickets = cartItems.map((item, index) => ({
+                    id: `${ref}-${index}`,
+                    bookingReference: ref,
+                    operator: item.operator,
+                    lineNumber: item.lineNumber,
+                    departureStation: item.departureStation,
+                    arrivalStation: item.arrivalStation,
+                    departureTime: item.departureTime,
+                    arrivalTime: item.arrivalTime,
+                    date: item.date,
+                    price: item.price,
+                    passengers: cartItems.length === 1 ? passengers : 1,
+                    qrCodeUrl: '',
+                    exchangesRemaining: 3,
+                    status: 'active' as const
+                }));
+                localStorage.setItem('userTickets', JSON.stringify([...existingTickets, ...newTickets]));
+
+                // Clear cart
+                localStorage.removeItem('checkoutCart');
+
                 setPaymentSuccess(true);
-                // Redirect to tickets page after 2 seconds
                 setTimeout(() => {
                     router.push('/tickets');
-                }, 2000);
+                }, 3000);
             } else {
                 alert('Payment failed: ' + (paymentRes.data.error?.message || 'Unknown error'));
             }
@@ -134,6 +203,17 @@ function CheckoutContent() {
             alert('An error occurred during payment processing: ' + (error.response?.data?.message || error.message));
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const removeItem = (index: number) => {
+        const newItems = [...cartItems];
+        newItems.splice(index, 1);
+        setCartItems(newItems);
+        localStorage.setItem('checkoutCart', JSON.stringify(newItems));
+
+        if (newItems.length === 0) {
+            router.back();
         }
     };
 
@@ -147,19 +227,30 @@ function CheckoutContent() {
                             <CheckCircle2 className="h-12 w-12 text-green-600" />
                         </div>
                         <h1 className="text-3xl font-bold text-slate-900 mb-3">Payment Successful!</h1>
-                        <p className="text-slate-600 mb-8">Your ticket has been booked successfully.</p>
-                        <div className="bg-slate-50 rounded-lg p-6 mb-8">
-                            <div className="text-sm text-slate-500 mb-2">Trip Details</div>
-                            <div className="font-bold text-lg text-slate-900 mb-1">
-                                {trip.departureStation} → {trip.arrivalStation}
+                        <p className="text-slate-600 mb-8">Your tickets have been booked successfully.</p>
+
+                        <div className="bg-slate-50 rounded-lg p-6 mb-8 text-left">
+                            <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-4">
+                                <span className="text-slate-600">Booking Reference</span>
+                                <span className="font-mono font-bold text-slate-900">{bookingReference}</span>
                             </div>
-                            <div className="text-slate-600 text-sm">
-                                {new Date(trip.date).toLocaleDateString()} • {trip.departureTime}
+                            <div className="space-y-4">
+                                {cartItems.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-slate-900">{item.departureStation} → {item.arrivalStation}</div>
+                                            <div className="text-sm text-slate-600">{new Date(item.date).toLocaleDateString()} • {item.departureTime}</div>
+                                        </div>
+                                        <div className="font-semibold text-slate-900">{item.price} DH</div>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="mt-4 text-2xl font-bold text-green-600">
-                                {totalPrice} DH
+                            <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
+                                <span className="font-bold text-slate-900">Total Paid</span>
+                                <span className="text-2xl font-bold text-green-600">{totalPrice} DH</span>
                             </div>
                         </div>
+
                         <p className="text-sm text-slate-500">Redirecting to your tickets...</p>
                     </div>
                 </div>
@@ -178,80 +269,98 @@ function CheckoutContent() {
                     className="mb-6 pl-0 hover:pl-2 transition-all"
                 >
                     <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Trip Details
+                    Back to Results
                 </Button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column - Trip Summary */}
                     <div className="lg:col-span-1">
                         <Card className="p-6 sticky top-8">
-                            <h2 className="text-xl font-bold text-slate-900 mb-6">Trip Summary</h2>
+                            <h2 className="text-xl font-bold text-slate-900 mb-6">Order Summary</h2>
 
-                            <div className="space-y-4 mb-6">
-                                <div className="flex items-center gap-3 text-sm">
-                                    <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                        <Bus className="h-4 w-4 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <div className="font-medium text-slate-900">{trip.operator}</div>
-                                        <div className="text-slate-500">Line {trip.lineNumber}</div>
-                                    </div>
-                                </div>
+                            <div className="space-y-6 mb-6">
+                                {cartItems.map((trip, index) => (
+                                    <div key={index} className="relative bg-slate-50 rounded-lg p-4 border border-slate-100">
+                                        {cartItems.length > 1 && (
+                                            <button
+                                                onClick={() => removeItem(index)}
+                                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        )}
 
-                                <div className="border-t border-slate-100 pt-4">
-                                    <div className="flex items-start gap-3 mb-3">
-                                        <div className="h-2 w-2 rounded-full bg-blue-600 mt-2"></div>
-                                        <div className="flex-1">
-                                            <div className="font-semibold text-slate-900">{trip.departureTime}</div>
-                                            <div className="text-sm text-slate-600">{trip.departureStation}</div>
+                                        <div className="flex items-center gap-3 text-sm mb-3">
+                                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                                <Bus className="h-4 w-4 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-slate-900">{trip.operator}</div>
+                                                <div className="text-slate-500">Line {trip.lineNumber}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <div className="flex flex-col items-center mt-1">
+                                                <div className="h-2 w-2 rounded-full bg-blue-600"></div>
+                                                <div className="w-0.5 h-8 border-l border-dashed border-slate-300 my-1"></div>
+                                                <div className="h-2 w-2 rounded-full bg-slate-900"></div>
+                                            </div>
+                                            <div className="flex-1 space-y-4">
+                                                <div>
+                                                    <div className="font-semibold text-slate-900">{trip.departureTime}</div>
+                                                    <div className="text-sm text-slate-600">{trip.departureStation}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="font-semibold text-slate-900">{trip.arrivalTime}</div>
+                                                    <div className="text-sm text-slate-600">{trip.arrivalStation}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-sm text-slate-600 pt-2 border-t border-slate-200">
+                                            <Calendar className="h-3 w-3" />
+                                            <span>{new Date(trip.date).toLocaleDateString()}</span>
+                                            <span className="mx-1">•</span>
+                                            <Clock className="h-3 w-3" />
+                                            <span>{trip.duration}</span>
+                                        </div>
+
+                                        <div className="mt-3 text-right font-bold text-slate-900">
+                                            {trip.price} DH
                                         </div>
                                     </div>
-                                    <div className="ml-1 border-l-2 border-dashed border-slate-200 h-8"></div>
-                                    <div className="flex items-start gap-3">
-                                        <div className="h-2 w-2 rounded-full bg-slate-900 mt-2"></div>
-                                        <div className="flex-1">
-                                            <div className="font-semibold text-slate-900">{trip.arrivalTime}</div>
-                                            <div className="text-sm text-slate-600">{trip.arrivalStation}</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-slate-100 pt-4 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                                        <Calendar className="h-4 w-4" />
-                                        <span>{new Date(trip.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                                        <Clock className="h-4 w-4" />
-                                        <span>{trip.duration}</span>
-                                    </div>
-                                </div>
+                                ))}
                             </div>
 
-                            <div className="border-t border-slate-100 pt-4 mb-4">
-                                <Label htmlFor="passengers" className="text-sm font-medium text-slate-700 mb-2 block">
-                                    Number of Passengers
-                                </Label>
-                                <Input
-                                    id="passengers"
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    value={passengers}
-                                    onChange={(e) => setPassengers(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                                    className="w-full"
-                                />
-                            </div>
+                            {cartItems.length === 1 && (
+                                <div className="border-t border-slate-100 pt-4 mb-4">
+                                    <Label htmlFor="passengers" className="text-sm font-medium text-slate-700 mb-2 block">
+                                        Number of Passengers
+                                    </Label>
+                                    <Input
+                                        id="passengers"
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        value={passengers}
+                                        onChange={(e) => setPassengers(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                        className="w-full"
+                                    />
+                                </div>
+                            )}
 
                             <div className="border-t border-slate-100 pt-4">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-slate-600">Price per ticket</span>
-                                    <span className="font-medium text-slate-900">{trip.price} DH</span>
+                                    <span className="text-slate-600">Items</span>
+                                    <span className="font-medium text-slate-900">{cartItems.length}</span>
                                 </div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-slate-600">Passengers</span>
-                                    <span className="font-medium text-slate-900">×{passengers}</span>
-                                </div>
+                                {cartItems.length === 1 && (
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-slate-600">Passengers</span>
+                                        <span className="font-medium text-slate-900">×{passengers}</span>
+                                    </div>
+                                )}
                                 <div className="border-t border-slate-100 pt-3 mt-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-lg font-bold text-slate-900">Total</span>
