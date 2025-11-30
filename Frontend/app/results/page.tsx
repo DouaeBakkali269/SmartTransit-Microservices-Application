@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Bus } from 'lucide-react';
@@ -18,6 +18,14 @@ import api from '@/lib/axios';
 import { useAuth } from '@/lib/auth-context';
 
 export default function ResultsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <ResultsContent />
+        </Suspense>
+    );
+}
+
+function ResultsContent() {
     const searchParams = useSearchParams();
     const from = searchParams.get('from') || 'ENSIAS';
     const to = searchParams.get('to') || 'Hassan Tower';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,14 @@ const Map = dynamic(() => import('@/components/map'), {
 });
 
 export default function SearchPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <SearchContent />
+        </Suspense>
+    );
+}
+
+function SearchContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isExchangeMode = searchParams.get('exchange') === 'true';

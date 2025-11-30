@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,14 @@ import { Bus, Calendar, Clock, MapPin, CreditCard, Smartphone, Building2, CheckC
 import api from '@/lib/axios';
 
 export default function CheckoutPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <CheckoutContent />
+        </Suspense>
+    );
+}
+
+function CheckoutContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isProcessing, setIsProcessing] = useState(false);
