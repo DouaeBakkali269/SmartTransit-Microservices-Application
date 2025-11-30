@@ -3,6 +3,7 @@ package com.smarttransit.authservice.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 public class RegisterRequest {
     
@@ -15,9 +16,11 @@ public class RegisterRequest {
     private String password;
     
     @NotBlank(message = "First name is required")
+    @JsonAlias({"firstname"})
     private String firstName;
     
     @NotBlank(message = "Last name is required")
+    @JsonAlias({"lastname"})
     private String lastName;
     
     // Constructors
