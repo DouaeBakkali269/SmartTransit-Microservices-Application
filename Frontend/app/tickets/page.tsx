@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bus, Calendar, Download, RefreshCw, QrCode as QrCodeIcon, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import QRCode from 'qrcode';
+import api from '@/lib/axios';
 
 type Ticket = {
     id: string;
@@ -39,29 +39,17 @@ export default function TicketsPage() {
 
     useEffect(() => {
         const loadTickets = async () => {
-            const storedTickets = localStorage.getItem('userTickets');
-            if (storedTickets) {
-                const parsedTickets = JSON.parse(storedTickets);
-                const ticketsWithQR = await Promise.all(
-                    parsedTickets.map(async (ticket: Ticket) => {
-                        if (!ticket.qrCodeUrl) {
-                            const ticketUrl = `${window.location.origin}/ticket/${ticket.bookingReference}`;
-                            const qrCodeUrl = await QRCode.toDataURL(ticketUrl, {
-                                width: 300,
-                                margin: 2,
-                                color: { dark: '#2563eb', light: '#ffffff' }
-                            });
-                            return { ...ticket, qrCodeUrl };
-                        }
-                        return ticket;
-                    })
-                );
-                setTickets([...ticketsWithQR].reverse());
-                localStorage.setItem('userTickets', JSON.stringify(ticketsWithQR));
+            try {
+                const response = await api.get('/tickets');
+                setTickets(response.data.tickets || []);
+            } catch (error) {
+                console.error("Error fetching tickets:", error);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
         loadTickets();
+
         // Check for an exchange success flag set by the results page
         try {
             const success = localStorage.getItem('exchangeSuccess');
@@ -121,15 +109,23 @@ export default function TicketsPage() {
         setShowCancelWarning(true);
     };
 
-    const confirmCancel = () => {
+    const confirmCancel = async () => {
         if (!selectedTicket) return;
-        const updatedTickets = tickets.map(t =>
-            t.id === selectedTicket.id ? { ...t, status: 'cancelled' as const } : t
-        );
-        setTickets(updatedTickets);
-        localStorage.setItem('userTickets', JSON.stringify(updatedTickets));
-        setShowCancelWarning(false);
-        setSelectedTicket(null);
+
+        try {
+            await api.delete(`/tickets/${selectedTicket.id}`);
+
+            // Update local state
+            const updatedTickets = tickets.map(t =>
+                t.id === selectedTicket.id ? { ...t, status: 'cancelled' as const } : t
+            );
+            setTickets(updatedTickets);
+            setShowCancelWarning(false);
+            setSelectedTicket(null);
+        } catch (error) {
+            console.error("Error cancelling ticket:", error);
+            alert("Failed to cancel ticket. Please try again.");
+        }
     };
 
     const downloadTicket = (ticket: Ticket) => {

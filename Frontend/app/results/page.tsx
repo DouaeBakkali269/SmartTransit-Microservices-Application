@@ -13,125 +13,9 @@ import {
     DialogTitle,
     DialogDescription,
 } from '@/components/ui/dialog';
-import { calculateDistance } from '@/lib/distance';
-import { findNearestLocation } from '@/lib/geolocation';
-import rabatLocations from '@/data/rabat-locations.json';
 import { TripResultCard, type Trip } from '@/components/trip-result-card';
-
-// Location coordinates mapping (from rabat-locations.json)
-const locationCoordinates: Record<string, [number, number]> = {};
-rabatLocations.locations.forEach(loc => {
-    locationCoordinates[loc.name.toUpperCase()] = [loc.coordinates[0], loc.coordinates[1]];
-});
-
-// Generate mock trips based on search parameters
-function generateMockTrips(
-    from: string,
-    to: string,
-    userLocation: [number, number],
-    fromCoords?: [number, number],
-    toCoords?: [number, number]
-): Trip[] {
-    let startStationName = from;
-    let endStationName = to;
-    let startStationCoords = locationCoordinates[from.toUpperCase()] || locationCoordinates['ENSIAS'];
-    let endStationCoords = locationCoordinates[to.toUpperCase()] || locationCoordinates['HASSAN TOWER'];
-
-    let walkingDeparture = null;
-    let walkingArrival = null;
-
-    // If exact coordinates are provided, find the nearest stations
-    if (fromCoords) {
-        const nearestStart = findNearestLocation(fromCoords[0], fromCoords[1]);
-        startStationName = nearestStart.name;
-        startStationCoords = nearestStart.coordinates;
-
-        // Apply 1.2x factor for walking path tortuosity
-        const walkDist = calculateDistance(fromCoords[0], fromCoords[1], startStationCoords[0], startStationCoords[1]) * 1.2;
-        if (walkDist > 0.05) { // Only show walking if distance > 50m
-            walkingDeparture = {
-                distance: parseFloat(walkDist.toFixed(2)),
-                duration: Math.min(Math.ceil(walkDist * 10), 5), // Cap at 5 mins
-                toStation: startStationName
-            };
-        }
-    }
-
-    if (toCoords) {
-        const nearestEnd = findNearestLocation(toCoords[0], toCoords[1]);
-        endStationName = nearestEnd.name;
-        endStationCoords = nearestEnd.coordinates;
-
-        // Apply 1.2x factor for walking path tortuosity
-        const walkDist = calculateDistance(toCoords[0], toCoords[1], endStationCoords[0], endStationCoords[1]) * 1.2;
-        if (walkDist > 0.05) {
-            walkingArrival = {
-                distance: parseFloat(walkDist.toFixed(2)),
-                duration: Math.min(Math.ceil(walkDist * 10), 5), // Cap at 5 mins
-                fromStation: endStationName
-            };
-        }
-    }
-
-    // Calculate distance between start and end stations
-    const straightDistance = calculateDistance(
-        startStationCoords[0],
-        startStationCoords[1],
-        endStationCoords[0],
-        endStationCoords[1]
-    );
-
-    // Estimate road distance (approx 1.3x straight line distance for urban routes)
-    const roadDistance = straightDistance * 1.3;
-
-    // Calculate duration based on realistic city bus speed
-    const averageSpeedKmh = 40;
-    const durationHours = roadDistance / averageSpeedKmh;
-
-    // Add 5 minutes for stops and boarding
-    const durationMinutes = Math.round(durationHours * 60) + 5;
-    const durationText = `${durationMinutes}min`;
-
-    // Base trips with different times
-    const baseTrips = [
-        { id: '1', time: '08:00', line: '101', operator: 'ALSA City Bus', services: ['Air Conditioning', 'WiFi'], isImmediate: true },
-        { id: '2', time: '09:00', line: '102', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
-        { id: '3', time: '10:30', line: '104', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
-        { id: '4', time: '12:00', line: '101', operator: 'ALSA City Bus', services: ['WiFi', 'Air Conditioning', 'USB Ports'] },
-        { id: '5', time: '14:00', line: '102', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
-        { id: '6', time: '16:00', line: '104', operator: 'ALSA City Bus', services: ['WiFi', 'Air Conditioning'] },
-        { id: '7', time: '18:00', line: '101', operator: 'ALSA City Bus', services: [] }
-    ];
-
-    return baseTrips.map(trip => {
-        // Calculate arrival time
-        const [hours, minutes] = trip.time.split(':').map(Number);
-        const departureDate = new Date();
-        departureDate.setHours(hours, minutes, 0, 0);
-        const arrivalDate = new Date(departureDate.getTime() + durationMinutes * 60000);
-        const arrivalTime = `${arrivalDate.getHours().toString().padStart(2, '0')}:${arrivalDate.getMinutes().toString().padStart(2, '0')}`;
-
-        return {
-            id: trip.id,
-            lineNumber: trip.line,
-            operator: trip.operator,
-            departureStation: startStationName,
-            arrivalStation: endStationName,
-            departureTime: trip.time,
-            arrivalTime: arrivalTime,
-            duration: durationText,
-            type: 'Direct',
-            price: 5, // Standardized price
-            services: trip.services,
-            isImmediate: trip.isImmediate,
-            distance: parseFloat(roadDistance.toFixed(1)),
-            walkingDeparture: walkingDeparture || undefined,
-            walkingArrival: walkingArrival || undefined,
-            departureCoords: startStationCoords,
-            arrivalCoords: endStationCoords
-        };
-    });
-}
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 
 export default function ResultsPage() {
     const searchParams = useSearchParams();
@@ -141,8 +25,10 @@ export default function ResultsPage() {
     const fromLng = searchParams.get('fromLng');
     const toLat = searchParams.get('toLat');
     const toLng = searchParams.get('toLng');
-    const date = searchParams.get('date') || new Date(2025, 10, 20).toISOString();
+    const date = searchParams.get('date') || new Date().toISOString();
+    const timeOption = searchParams.get('timeOption') || 'now';
     const isExchangeMode = searchParams.get('exchange') === 'true';
+    const { user } = useAuth();
 
     const [trips, setTrips] = useState<Trip[]>([]);
     const [loading, setLoading] = useState(true);
@@ -160,7 +46,15 @@ export default function ResultsPage() {
         if (isExchangeMode) {
             const storedTicket = localStorage.getItem('exchangingTicket');
             if (storedTicket) {
-                setExchangingTicket(JSON.parse(storedTicket));
+                const ticket = JSON.parse(storedTicket);
+                // Fetch fresh details from API
+                api.get(`/tickets/${ticket.id}`)
+                    .then(res => setExchangingTicket(res.data))
+                    .catch(err => {
+                        console.error('Error fetching ticket details:', err);
+                        // Fallback to stored ticket if API fails
+                        setExchangingTicket(ticket);
+                    });
             }
         }
     }, [isExchangeMode]);
@@ -183,16 +77,33 @@ export default function ResultsPage() {
     }, []);
 
     useEffect(() => {
-        setLoading(true);
-        setTimeout(() => {
-            const fromCoords: [number, number] | undefined = fromLat && fromLng ? [parseFloat(fromLat), parseFloat(fromLng)] : undefined;
-            const toCoords: [number, number] | undefined = toLat && toLng ? [parseFloat(toLat), parseFloat(toLng)] : undefined;
+        const fetchTrips = async () => {
+            setLoading(true);
+            try {
+                const params: any = {
+                    from,
+                    to,
+                    date,
+                    timeOption
+                };
 
-            const mockTrips = generateMockTrips(from, to, userLocation, fromCoords, toCoords);
-            setTrips(mockTrips);
-            setLoading(false);
-        }, 300);
-    }, [from, to, userLocation, fromLat, fromLng, toLat, toLng]);
+                if (fromLat) params.fromLat = fromLat;
+                if (fromLng) params.fromLng = fromLng;
+                if (toLat) params.toLat = toLat;
+                if (toLng) params.toLng = toLng;
+
+                const response = await api.get('/routes/search', { params });
+                setTrips(response.data.trips || []);
+            } catch (error) {
+                console.error("Error fetching trips:", error);
+                setTrips([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTrips();
+    }, [from, to, fromLat, fromLng, toLat, toLng, date, timeOption]);
 
     const addToCart = (trip: Trip) => {
         // If in exchange mode, show confirmation dialog before performing the exchange
@@ -208,42 +119,17 @@ export default function ResultsPage() {
         }
     };
 
-    const confirmExchangeNow = (trip: Trip | null) => {
+    const confirmExchangeNow = async (trip: Trip | null) => {
         if (!trip || !exchangingTicket) return;
 
-        // Perform exchange: update stored tickets and set success flag, then redirect
-        const storedTickets = localStorage.getItem('userTickets');
-        if (!storedTickets) {
-            setShowConfirmExchange(false);
-            return;
-        }
+        try {
+            await api.post(`/tickets/${exchangingTicket.id}/exchange`, {
+                newTripId: trip.id,
+                newDate: date
+            });
 
-        const allTickets = JSON.parse(storedTickets);
-
-        const updatedTickets = allTickets.map((ticket: any) => {
-            if (ticket.id === exchangingTicket.id) {
-                return {
-                    ...ticket,
-                    operator: trip.operator,
-                    lineNumber: trip.lineNumber,
-                    departureStation: trip.departureStation,
-                    arrivalStation: trip.arrivalStation,
-                    departureTime: trip.departureTime,
-                    arrivalTime: trip.arrivalTime,
-                    date: date,
-                    price: trip.price,
-                    exchangesRemaining: ticket.exchangesRemaining - 1,
-                    status: 'exchanged' as const,
-                    qrCodeUrl: ticket.qrCodeUrl
-                };
-            }
-            return ticket;
-        });
-
-        // Store exchange success info for tickets page to show banner
-        const originalTicket = JSON.parse(storedTickets).find((t: any) => t.id === exchangingTicket.id);
-        if (originalTicket) {
-            const remainingAfter = originalTicket.exchangesRemaining - 1;
+            // Store exchange success info for tickets page to show banner
+            const remainingAfter = exchangingTicket.exchangesRemaining - 1;
             try {
                 localStorage.setItem('exchangeSuccess', JSON.stringify({
                     message: 'Ticket exchanged successfully',
@@ -253,15 +139,17 @@ export default function ResultsPage() {
             } catch (e) {
                 // ignore
             }
+
+            localStorage.removeItem('exchangingTicket');
+            setExchangingTicket(null);
+            setShowConfirmExchange(false);
+
+            // Redirect immediately to tickets page where the banner will show
+            router.push('/tickets');
+        } catch (error) {
+            console.error("Exchange failed:", error);
+            alert("Failed to exchange ticket. Please try again.");
         }
-
-        localStorage.setItem('userTickets', JSON.stringify(updatedTickets));
-        localStorage.removeItem('exchangingTicket');
-        setExchangingTicket(null);
-        setShowConfirmExchange(false);
-
-        // Redirect immediately to tickets page where the banner will show
-        router.push('/tickets');
     };
 
     const removeFromCart = (tripId: string) => {
@@ -313,16 +201,26 @@ export default function ResultsPage() {
                                     <p className="text-slate-500 mt-4">Finding best routes...</p>
                                 </div>
                             ) : (
-                                trips.map((trip) => (
-                                    <TripResultCard
-                                        key={trip.id}
-                                        trip={trip}
-                                        isInCart={!!cartItems.find(item => item.id === trip.id)}
-                                        isExchangeMode={isExchangeMode}
-                                        onAddToCart={addToCart}
-                                        userLocation={userLocation}
-                                    />
-                                ))
+                                trips.length > 0 ? (
+                                    trips.map((trip) => (
+                                        <TripResultCard
+                                            key={trip.id}
+                                            trip={trip}
+                                            isInCart={!!cartItems.find(item => item.id === trip.id)}
+                                            isExchangeMode={isExchangeMode}
+                                            onAddToCart={addToCart}
+                                            userLocation={userLocation}
+                                        />
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+                                        <div className="inline-block p-4 rounded-full bg-slate-100 mb-4">
+                                            <Bus className="h-8 w-8 text-slate-400" />
+                                        </div>
+                                        <h3 className="text-lg font-medium text-slate-900">No trips found</h3>
+                                        <p className="text-slate-500 mt-2">Try adjusting your search criteria</p>
+                                    </div>
+                                )
                             )}
                         </div>
                     </div>

@@ -7,14 +7,26 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Clock, MapPin } from 'lucide-react';
 import Link from 'next/link';
+import api from '@/lib/axios';
 
-// Mock types
 type Line = {
     id: string;
     number: string;
     name: string;
-    stations: string[];
+    color: string;
     schedule: string;
+    status: 'active' | 'inactive';
+    startStation: {
+        name: string;
+        coordinates: [number, number];
+    };
+    endStation: {
+        name: string;
+        coordinates: [number, number];
+    };
+    stationCount: number;
+    estimatedDuration: number;
+    price: number;
 };
 
 export default function LinesPage() {
@@ -22,35 +34,17 @@ export default function LinesPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Mock fetch lines
-        const mockLines = [
-            {
-                id: "L1",
-                number: "101",
-                name: "ENSIAS - Hassan Tower",
-                stations: ["ENSIAS", "Mohammed V University", "Agdal", "Jardin d'Essais", "Rabat Ville", "Hassan Tower"],
-                schedule: "Every 15 mins"
-            },
-            {
-                id: "L2",
-                number: "102",
-                name: "Yacoub El Mansour - Marina",
-                stations: ["Yacoub El Mansour", "Stade Moulay Abdallah", "Ocean", "Medina", "Kasbah", "Marina"],
-                schedule: "Every 20 mins"
-            },
-            {
-                id: "L3",
-                number: "104",
-                name: "Hay Riad - Salé",
-                stations: ["Hay Riad", "Mega Mall", "Souissi", "Hay Nahda", "Airport", "Salé"],
-                schedule: "Every 30 mins"
+        const fetchLines = async () => {
+            try {
+                const response = await api.get('/lines');
+                setLines(response.data.lines || []);
+            } catch (error) {
+                console.error("Error fetching lines:", error);
+            } finally {
+                setLoading(false);
             }
-        ];
-
-        setTimeout(() => {
-            setLines(mockLines);
-            setLoading(false);
-        }, 500);
+        };
+        fetchLines();
     }, []);
 
     return (
@@ -62,12 +56,16 @@ export default function LinesPage() {
 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {loading ? (
-                        <div className="col-span-full text-center py-12 text-slate-500">Loading lines...</div>
+                        <div className="col-span-full flex justify-center py-12">
+                            <div className="h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : lines.length === 0 ? (
+                        <div className="col-span-full text-center py-12 text-slate-500">No lines available.</div>
                     ) : lines.map((line) => (
                         <Card key={line.id} className="hover:shadow-md transition-shadow">
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
-                                    <Badge className="bg-blue-600 text-lg px-3 py-1">
+                                    <Badge className="text-lg px-3 py-1" style={{ backgroundColor: line.color || '#2563eb' }}>
                                         {line.number}
                                     </Badge>
                                     <Badge variant="outline" className="flex items-center gap-1 text-slate-600">
@@ -82,12 +80,12 @@ export default function LinesPage() {
                                     <div className="flex items-center text-sm text-slate-600">
                                         <MapPin className="h-4 w-4 mr-2 text-blue-500" />
                                         <span className="font-medium">Start:</span>
-                                        <span className="ml-1 truncate">{line.stations[0]}</span>
+                                        <span className="ml-1 truncate">{line.startStation?.name || 'N/A'}</span>
                                     </div>
                                     <div className="flex items-center text-sm text-slate-600">
                                         <MapPin className="h-4 w-4 mr-2 text-red-500" />
                                         <span className="font-medium">End:</span>
-                                        <span className="ml-1 truncate">{line.stations[line.stations.length - 1]}</span>
+                                        <span className="ml-1 truncate">{line.endStation?.name || 'N/A'}</span>
                                     </div>
 
                                     <div className="pt-4">

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Bus, Calendar, Clock, MapPin, CreditCard, Smartphone, Building2, CheckCircle2, ArrowLeft } from 'lucide-react';
-import QRCode from 'qrcode';
+import api from '@/lib/axios';
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -20,6 +20,9 @@ export default function CheckoutPage() {
     const [passengers, setPassengers] = useState(1);
     const [cardNumber, setCardNumber] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
+    const [cvv, setCvv] = useState('');
+    const [cardName, setCardName] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
 
     // Parse trip details from URL params
     const trip = {
@@ -75,47 +78,55 @@ export default function CheckoutPage() {
     const handlePayment = async () => {
         setIsProcessing(true);
 
-        // Simulate payment processing
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+            // 1. Create Booking
+            const bookingRes = await api.post('/bookings', {
+                tripId: trip.id,
+                date: trip.date,
+                passengers: passengers
+            });
 
-        // Generate ticket
-        const bookingRef = `ST${Date.now().toString(36).toUpperCase()}`;
-        const ticketUrl = `${window.location.origin}/ticket/${bookingRef}`;
-        const qrCodeUrl = await QRCode.toDataURL(ticketUrl, {
-            width: 300,
-            margin: 2,
-            color: { dark: '#2563eb', light: '#ffffff' }
-        });
+            if (!bookingRes.data.booking?.id) {
+                throw new Error('Failed to create booking');
+            }
 
-        const newTicket = {
-            id: Date.now().toString(),
-            bookingReference: bookingRef,
-            operator: trip.operator,
-            lineNumber: trip.lineNumber,
-            departureStation: trip.departureStation,
-            arrivalStation: trip.arrivalStation,
-            departureTime: trip.departureTime,
-            arrivalTime: trip.arrivalTime,
-            date: trip.date,
-            price: totalPrice,
-            passengers: passengers,
-            qrCodeUrl: qrCodeUrl,
-            exchangesRemaining: 3,
-            status: 'active' as const,
-        };
+            const bookingId = bookingRes.data.booking.id;
 
-        // Save to localStorage
-        const existingTickets = JSON.parse(localStorage.getItem('userTickets') || '[]');
-        existingTickets.push(newTicket);
-        localStorage.setItem('userTickets', JSON.stringify(existingTickets));
+            // 2. Process Payment
+            const paymentDetails: any = {};
+            if (paymentMethod === 'card') {
+                paymentDetails.cardNumber = cardNumber.replace(/\s/g, '');
+                paymentDetails.cardName = cardName;
+                paymentDetails.expiryDate = expiryDate;
+                paymentDetails.cvv = cvv;
+            } else if (paymentMethod === 'mobile') {
+                paymentDetails.phoneNumber = phoneNumber;
+                paymentDetails.provider = 'orange'; // Default or add selector
+            } else if (paymentMethod === 'bank') {
+                paymentDetails.bankAccount = 'manual_transfer';
+            }
 
-        setIsProcessing(false);
-        setPaymentSuccess(true);
+            const paymentRes = await api.post('/payments/process', {
+                bookingId,
+                paymentMethod,
+                paymentDetails
+            });
 
-        // Redirect to tickets page after 2 seconds
-        setTimeout(() => {
-            router.push('/tickets');
-        }, 2000);
+            if (paymentRes.data.success) {
+                setPaymentSuccess(true);
+                // Redirect to tickets page after 2 seconds
+                setTimeout(() => {
+                    router.push('/tickets');
+                }, 2000);
+            } else {
+                alert('Payment failed: ' + (paymentRes.data.error?.message || 'Unknown error'));
+            }
+        } catch (error: any) {
+            console.error('Payment error:', error);
+            alert('An error occurred during payment processing: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     if (paymentSuccess) {
@@ -311,6 +322,8 @@ export default function CheckoutPage() {
                                         <Input
                                             id="cardName"
                                             placeholder="John Doe"
+                                            value={cardName}
+                                            onChange={(e) => setCardName(e.target.value)}
                                             className="w-full"
                                         />
                                     </div>
@@ -336,6 +349,8 @@ export default function CheckoutPage() {
                                                 id="cvv"
                                                 placeholder="123"
                                                 type="password"
+                                                value={cvv}
+                                                onChange={(e) => setCvv(e.target.value)}
                                                 maxLength={3}
                                                 className="w-full"
                                             />
@@ -354,6 +369,8 @@ export default function CheckoutPage() {
                                         <Input
                                             id="phoneNumber"
                                             placeholder="+212 6XX XXX XXX"
+                                            value={phoneNumber}
+                                            onChange={(e) => setPhoneNumber(e.target.value)}
                                             className="w-full"
                                         />
                                     </div>

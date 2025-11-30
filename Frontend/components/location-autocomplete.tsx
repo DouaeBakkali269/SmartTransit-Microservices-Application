@@ -50,15 +50,25 @@ export function LocationAutocomplete({
 
     // Search for locations when input changes
     useEffect(() => {
-        if (value.length >= 2 && isUserTyping && !disabled) {
-            const results = searchLocations(value);
-            setSuggestions(results);
-            setShowSuggestions(true);
-            setSelectedIndex(-1);
-        } else if (isUserTyping) {
-            setSuggestions([]);
-            setShowSuggestions(false);
-        }
+        const fetchSuggestions = async () => {
+            if (value.length >= 2 && isUserTyping && !disabled) {
+                try {
+                    const results = await searchLocations(value);
+                    setSuggestions(results);
+                    setShowSuggestions(true);
+                    setSelectedIndex(-1);
+                } catch (error) {
+                    console.error("Error fetching suggestions:", error);
+                    setSuggestions([]);
+                }
+            } else if (isUserTyping) {
+                setSuggestions([]);
+                setShowSuggestions(false);
+            }
+        };
+
+        const timeoutId = setTimeout(fetchSuggestions, 300); // Debounce
+        return () => clearTimeout(timeoutId);
     }, [value, isUserTyping, disabled]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

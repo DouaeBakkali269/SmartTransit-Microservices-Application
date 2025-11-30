@@ -9,40 +9,95 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { User, Mail, CreditCard, Star, Check, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import api from '@/lib/axios';
 
 export default function ProfilePage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [currentPlan, setCurrentPlan] = useState('basic');
     const [selectedPlan, setSelectedPlan] = useState('basic');
     const [isUpdating, setIsUpdating] = useState(false);
     const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+    const [stats, setStats] = useState({ tripsCount: 0, distanceTraveled: 0, moneySaved: 0 });
+    const [plans, setPlans] = useState<any[]>([]);
+    const [profileName, setProfileName] = useState('');
 
     useEffect(() => {
-        // Load subscription from localStorage
-        const saved = localStorage.getItem('userSubscription');
-        if (saved) {
-            setCurrentPlan(saved);
-            setSelectedPlan(saved);
+        if (user) {
+            setProfileName(user.name);
         }
+    }, [user]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Fetch plans
+                const plansRes = await api.get('/subscriptions/plans');
+                setPlans(plansRes.data.plans);
+
+                // Fetch user subscription
+                try {
+                    const subRes = await api.get('/users/me/subscription');
+                    if (subRes.data.subscription) {
+                        setCurrentPlan(subRes.data.subscription.planId);
+                        setSelectedPlan(subRes.data.subscription.planId);
+                    }
+                } catch (e) {
+                    // Ignore if no subscription found (defaults to basic)
+                }
+
+                // Fetch stats
+                try {
+                    const statsRes = await api.get('/users/me/stats');
+                    setStats(statsRes.data.stats);
+                } catch (e) {
+                    // Ignore stats error
+                }
+            } catch (error) {
+                console.error("Error fetching profile data:", error);
+            }
+        };
+        fetchData();
     }, []);
 
-    const handleUpdateSubscription = () => {
+    const handleUpdateSubscription = async () => {
         setIsUpdating(true);
-        // Simulate API call
-        setTimeout(() => {
-            localStorage.setItem('userSubscription', selectedPlan);
+        try {
+            await api.post('/subscriptions/change', {
+                planId: selectedPlan,
+                paymentMethod: 'default' // Simplified for now
+            });
             setCurrentPlan(selectedPlan);
-            setIsUpdating(false);
             setShowSuccessBanner(true);
-            // Auto-hide after 4 seconds
             setTimeout(() => setShowSuccessBanner(false), 4000);
-        }, 1000);
+        } catch (error) {
+            console.error("Error updating subscription:", error);
+            alert("Failed to update subscription.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        try {
+            const res = await api.put('/users/me', {
+                name: profileName
+            });
+            // Update local user context
+            if (user && updateUser) {
+                updateUser({ name: profileName });
+            }
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            alert("Failed to update profile.");
+        }
     };
 
     if (!user) return null;
 
-    const plans = [
+    // Default plans if API fails or returns empty
+    const displayPlans = plans.length > 0 ? plans : [
         {
             id: 'basic',
             name: 'Pay as you go',
@@ -113,7 +168,13 @@ export default function ProfilePage() {
                                     <Label htmlFor="name">Full Name</Label>
                                     <div className="relative">
                                         <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                                        <Input id="name" defaultValue={user.name} disabled={!isEditing} className="pl-9" />
+                                        <Input
+                                            id="name"
+                                            value={profileName}
+                                            onChange={(e) => setProfileName(e.target.value)}
+                                            disabled={!isEditing}
+                                            className="pl-9"
+                                        />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -128,7 +189,13 @@ export default function ProfilePage() {
                                 <Button
                                     variant={isEditing ? "default" : "outline"}
                                     className="w-full"
-                                    onClick={() => setIsEditing(!isEditing)}
+                                    onClick={() => {
+                                        if (isEditing) {
+                                            handleSaveProfile();
+                                        } else {
+                                            setIsEditing(true);
+                                        }
+                                    }}
                                 >
                                     {isEditing ? 'Save Changes' : 'Edit Profile'}
                                 </Button>
@@ -136,91 +203,90 @@ export default function ProfilePage() {
                         </Card>
                     </div>
 
-                </div>
-
-                {/* Subscription Section - Only for Users */}
-                {user.role === 'user' && (
-                    <div className="md:col-span-2 space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center gap-2">
-                                    <CreditCard className="h-5 w-5 text-blue-600" />
-                                    <CardTitle>Subscription Plan</CardTitle>
-                                </div>
-                                <CardDescription>Manage your travel subscription</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    {plans.map((plan) => (
-                                        <div
-                                            key={plan.id}
-                                            className={`relative rounded-lg border p-4 cursor-pointer transition-all ${selectedPlan === plan.id
-                                                ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
-                                                : 'border-slate-200 hover:border-blue-300'
-                                                }`}
-                                            onClick={() => setSelectedPlan(plan.id)}
-                                        >
-                                            {selectedPlan === plan.id && (
-                                                <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
-                                                    <Check className="h-3 w-3" />
+                    {/* Subscription Section - Only for Users */}
+                    {user.role === 'user' && (
+                        <div className="md:col-span-2 space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center gap-2">
+                                        <CreditCard className="h-5 w-5 text-blue-600" />
+                                        <CardTitle>Subscription Plan</CardTitle>
+                                    </div>
+                                    <CardDescription>Manage your travel subscription</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-4 md:grid-cols-3">
+                                        {displayPlans.map((plan) => (
+                                            <div
+                                                key={plan.id}
+                                                className={`relative rounded-lg border p-4 cursor-pointer transition-all ${selectedPlan === plan.id
+                                                    ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
+                                                    : 'border-slate-200 hover:border-blue-300'
+                                                    }`}
+                                                onClick={() => setSelectedPlan(plan.id)}
+                                            >
+                                                {selectedPlan === plan.id && (
+                                                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
+                                                        <Check className="h-3 w-3" />
+                                                    </div>
+                                                )}
+                                                <h3 className="font-semibold text-slate-900">{plan.name}</h3>
+                                                <div className="mt-2 mb-4">
+                                                    <span className="text-2xl font-bold">{plan.price}</span>
+                                                    <span className="text-xs text-slate-500">{plan.period}</span>
                                                 </div>
-                                            )}
-                                            <h3 className="font-semibold text-slate-900">{plan.name}</h3>
-                                            <div className="mt-2 mb-4">
-                                                <span className="text-2xl font-bold">{plan.price}</span>
-                                                <span className="text-xs text-slate-500">{plan.period}</span>
+                                                <ul className="space-y-2">
+                                                    {plan.features.map((feature: string, i: number) => (
+                                                        <li key={i} className="flex items-center text-xs text-slate-600">
+                                                            <Check className="h-3 w-3 mr-1 text-green-500" />
+                                                            {feature}
+                                                        </li>
+                                                    ))}
+                                                </ul>
                                             </div>
-                                            <ul className="space-y-2">
-                                                {plan.features.map((feature, i) => (
-                                                    <li key={i} className="flex items-center text-xs text-slate-600">
-                                                        <Check className="h-3 w-3 mr-1 text-green-500" />
-                                                        {feature}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                            <CardFooter className="bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                                <div className="text-sm text-slate-500">
-                                    Current Plan: <span className="font-semibold text-slate-900 capitalize">{plans.find(p => p.id === currentPlan)?.name}</span>
-                                </div>
-                                <Button
-                                    onClick={handleUpdateSubscription}
-                                    disabled={selectedPlan === currentPlan || isUpdating}
-                                >
-                                    {isUpdating ? 'Updating...' : 'Update Subscription'}
-                                </Button>
-                            </CardFooter>
-                        </Card>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                                <CardFooter className="bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                                    <div className="text-sm text-slate-500">
+                                        Current Plan: <span className="font-semibold text-slate-900 capitalize">{displayPlans.find(p => p.id === currentPlan)?.name}</span>
+                                    </div>
+                                    <Button
+                                        onClick={handleUpdateSubscription}
+                                        disabled={selectedPlan === currentPlan || isUpdating}
+                                    >
+                                        {isUpdating ? 'Updating...' : 'Update Subscription'}
+                                    </Button>
+                                </CardFooter>
+                            </Card>
 
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center gap-2">
-                                    <Star className="h-5 w-5 text-yellow-500" />
-                                    <CardTitle>Travel Stats</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid grid-cols-3 gap-4 text-center">
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <div className="text-2xl font-bold text-slate-900">12</div>
-                                        <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Trips this month</div>
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center gap-2">
+                                        <Star className="h-5 w-5 text-yellow-500" />
+                                        <CardTitle>Travel Stats</CardTitle>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <div className="text-2xl font-bold text-slate-900">450</div>
-                                        <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Km Traveled</div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-3 gap-4 text-center">
+                                        <div className="p-4 bg-slate-50 rounded-lg">
+                                            <div className="text-2xl font-bold text-slate-900">{stats.tripsCount}</div>
+                                            <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Trips this month</div>
+                                        </div>
+                                        <div className="p-4 bg-slate-50 rounded-lg">
+                                            <div className="text-2xl font-bold text-slate-900">{stats.distanceTraveled}</div>
+                                            <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Km Traveled</div>
+                                        </div>
+                                        <div className="p-4 bg-slate-50 rounded-lg">
+                                            <div className="text-2xl font-bold text-slate-900">${stats.moneySaved}</div>
+                                            <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Saved</div>
+                                        </div>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <div className="text-2xl font-bold text-slate-900">$32</div>
-                                        <div className="text-xs text-slate-500 uppercase tracking-wide mt-1">Saved</div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
 

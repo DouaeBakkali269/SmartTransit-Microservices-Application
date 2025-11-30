@@ -6,6 +6,7 @@ import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Bus, Calendar, QrCode as QrCodeIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import api from '@/lib/axios';
 
 // Dynamically import TripMap to avoid SSR issues
 const TripMap = dynamic(() => import('@/components/trip-map').then(mod => ({ default: mod.TripMap })), { ssr: false });
@@ -16,21 +17,34 @@ export default function TicketDetailsPage() {
     const ticketId = params?.id as string;
 
     const [ticket, setTicket] = useState<any | null>(null);
+    const [loading, setLoading] = useState(true);
     const [userLocation, setUserLocation] = useState<[number, number]>([33.9715, -6.8498]);
     const [startCoords, setStartCoords] = useState<[number, number] | null>(null);
     const [endCoords, setEndCoords] = useState<[number, number] | null>(null);
 
     useEffect(() => {
-        // Load ticket from localStorage
-        try {
-            const stored = localStorage.getItem('userTickets');
-            if (stored) {
-                const all = JSON.parse(stored);
-                const found = all.find((t: any) => t.id === ticketId);
-                if (found) setTicket(found);
+        const fetchTicket = async () => {
+            try {
+                const response = await api.get(`/tickets/${ticketId}`);
+                const ticketData = response.data.ticket;
+                setTicket(ticketData);
+
+                // Set coordinates if available
+                if (ticketData.stationDetails?.departure?.coordinates) {
+                    setStartCoords(ticketData.stationDetails.departure.coordinates);
+                }
+                if (ticketData.stationDetails?.arrival?.coordinates) {
+                    setEndCoords(ticketData.stationDetails.arrival.coordinates);
+                }
+            } catch (error) {
+                console.error("Error fetching ticket:", error);
+            } finally {
+                setLoading(false);
             }
-        } catch (e) {
-            console.error('Failed to read tickets from storage', e);
+        };
+
+        if (ticketId) {
+            fetchTicket();
         }
     }, [ticketId]);
 
@@ -42,72 +56,18 @@ export default function TicketDetailsPage() {
                 () => setUserLocation([33.9715, -6.8498])
             );
         }
+    }, []);
 
-        // load station coordinates from data file
-        (async () => {
-            try {
-                const mod = await import('@/data/rabat-locations.json');
-                const locations = mod.locations as Array<any>;
-
-                const normalize = (s: any) => String(s || '').toLowerCase().trim();
-                const ticketStart = normalize(ticket?.departureStation);
-                const ticketEnd = normalize(ticket?.arrivalStation);
-
-                const findLocal = (query: string) => {
-                    if (!query) return null;
-                    // exact
-                    let found = locations.find(l => normalize(l.name) === query);
-                    if (found) return found;
-                    // partial includes
-                    found = locations.find(l => normalize(l.name).includes(query) || query.includes(normalize(l.name)));
-                    if (found) return found;
-                    // token match (any word)
-                    const tokens = query.split(/\s+/).filter(Boolean);
-                    for (const t of tokens) {
-                        const f = locations.find(l => normalize(l.name).includes(t));
-                        if (f) return f;
-                    }
-                    return null;
-                };
-
-                const geocode = async (q: string) => {
-                    if (!q) return null;
-                    try {
-                        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q + ' Rabat')}&limit=1`;
-                        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-                        if (!res.ok) return null;
-                        const data = await res.json();
-                        if (data && data.length > 0) {
-                            const lat = parseFloat(data[0].lat);
-                            const lon = parseFloat(data[0].lon);
-                            return [lat, lon] as [number, number];
-                        }
-                    } catch (e) {
-                        console.warn('Geocode failed', e);
-                    }
-                    return null;
-                };
-
-                // find start
-                let start = findLocal(ticketStart);
-                if (start) setStartCoords([start.coordinates[0], start.coordinates[1]]);
-                else {
-                    const coords = await geocode(String(ticket?.departureStation || ''));
-                    if (coords) setStartCoords(coords);
-                }
-
-                // find end
-                let end = findLocal(ticketEnd);
-                if (end) setEndCoords([end.coordinates[0], end.coordinates[1]]);
-                else {
-                    const coords = await geocode(String(ticket?.arrivalStation || ''));
-                    if (coords) setEndCoords(coords);
-                }
-            } catch (e) {
-                console.error('Could not load locations or geocode', e);
-            }
-        })();
-    }, [ticket]);
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="max-w-4xl mx-auto p-8 flex justify-center">
+                    <div className="h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            </div>
+        );
+    }
 
     if (!ticket) {
         return (

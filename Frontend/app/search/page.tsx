@@ -8,6 +8,8 @@ import { LocationAutocomplete } from '@/components/location-autocomplete';
 import { DateTimePicker } from '@/components/ui/datetime-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Clock, Search, Navigation2, Map as MapIcon, RefreshCw } from 'lucide-react';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { getCurrentLocation, DEFAULT_LOCATION, type Location } from '@/lib/geolocation';
@@ -18,32 +20,11 @@ const Map = dynamic(() => import('@/components/map'), {
     loading: () => <div className="h-full w-full bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400">Loading Map...</div>
 });
 
-// Recent searches data with Moroccan locations
-const RECENT_SEARCHES = [
-    {
-        id: '1',
-        from: 'ENSIAS',
-        to: 'Hassan Tower',
-        date: 'Yesterday'
-    },
-    {
-        id: '2',
-        from: 'Agdal',
-        to: 'Rabat Ville Train Station',
-        date: '2 days ago'
-    },
-    {
-        id: '3',
-        from: 'Hay Riad',
-        to: 'Medina of Rabat',
-        date: '3 days ago'
-    }
-];
-
 export default function SearchPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isExchangeMode = searchParams.get('exchange') === 'true';
+    const { user } = useAuth();
 
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
@@ -54,6 +35,7 @@ export default function SearchPage() {
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
     const [mapClickMode, setMapClickMode] = useState<'from' | 'to' | null>(null);
     const [exchangingTicket, setExchangingTicket] = useState<any>(null);
+    const [recentSearches, setRecentSearches] = useState<any[]>([]);
 
     // Set ENSIAS as default location on mount or load exchange ticket
     useEffect(() => {
@@ -80,39 +62,14 @@ export default function SearchPage() {
         }
     }, [isExchangeMode]);
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!from || !to) {
-            alert('Please select both departure and destination locations');
-            return;
+    // Fetch recent searches
+    useEffect(() => {
+        if (user) {
+            api.get('/users/me/searches/recent')
+                .then(res => setRecentSearches(res.data.searches || []))
+                .catch(err => console.error('Error fetching recent searches:', err));
         }
-
-        // In a real app, we would pass these params to the results page
-        const params = new URLSearchParams({
-            from,
-            to,
-            date: departureDate.toISOString(),
-            timeOption
-        });
-
-        // Add coordinates if available
-        if (fromLocation) {
-            params.append('fromLat', fromLocation.coordinates[0].toString());
-            params.append('fromLng', fromLocation.coordinates[1].toString());
-        }
-
-        if (toLocation) {
-            params.append('toLat', toLocation.coordinates[0].toString());
-            params.append('toLng', toLocation.coordinates[1].toString());
-        }
-
-        if (isExchangeMode) {
-            params.append('exchange', 'true');
-        }
-
-        router.push(`/results?${params.toString()}`);
-    };
+    }, [user]);
 
     const handleCurrentLocationClick = async () => {
         setIsLoadingLocation(true);
@@ -151,10 +108,65 @@ export default function SearchPage() {
         setMapClickMode(null);
     };
 
-    const handleRecentSearchClick = (search: typeof RECENT_SEARCHES[0]) => {
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!from || !to) {
+            alert('Please select both departure and destination locations');
+            return;
+        }
+
+        // Save search if user is logged in
+        if (user) {
+            try {
+                await api.post('/users/me/searches', {
+                    from,
+                    to,
+                    fromCoords: fromLocation?.coordinates,
+                    toCoords: toLocation?.coordinates,
+                    date: departureDate.toISOString()
+                });
+            } catch (err) {
+                console.error('Error saving search:', err);
+            }
+        }
+
+        // In a real app, we would pass these params to the results page
+        const params = new URLSearchParams({
+            from,
+            to,
+            date: departureDate.toISOString(),
+            timeOption
+        });
+
+        // ...
+
+        router.push(`/results?${params.toString()}`);
+    };
+
+    // ...
+
+    const handleRecentSearchClick = (search: any) => {
         setFrom(search.from);
         setTo(search.to);
-        // In a real app, we would also set the location objects
+        if (search.fromCoords) {
+            setFromLocation({
+                id: 'recent-from',
+                name: search.from,
+                type: 'recent',
+                coordinates: search.fromCoords,
+                address: search.from
+            });
+        }
+        if (search.toCoords) {
+            setToLocation({
+                id: 'recent-to',
+                name: search.to,
+                type: 'recent',
+                coordinates: search.toCoords,
+                address: search.to
+            });
+        }
     };
 
     const handleSwapLocations = () => {
@@ -317,12 +329,12 @@ export default function SearchPage() {
                         </Button>
                     </form>
 
-                    {/* Recent Searches - Hide in exchange mode */}
-                    {!isExchangeMode && (
+                    {/* Recent Searches */}
+                    {!isExchangeMode && recentSearches.length > 0 && (
                         <div className="mt-8">
                             <h3 className="font-semibold text-slate-900 mb-4">Recent Searches</h3>
                             <div className="space-y-3">
-                                {RECENT_SEARCHES.map((search) => (
+                                {recentSearches.map((search) => (
                                     <button
                                         key={search.id}
                                         type="button"
@@ -334,7 +346,7 @@ export default function SearchPage() {
                                         </div>
                                         <div className="flex-1">
                                             <div className="font-medium text-slate-900">{search.from} → {search.to}</div>
-                                            <div className="text-xs text-slate-500">{search.date}</div>
+                                            <div className="text-xs text-slate-500">{new Date(search.searchedAt).toLocaleDateString()}</div>
                                         </div>
                                     </button>
                                 ))}

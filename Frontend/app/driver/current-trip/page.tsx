@@ -12,21 +12,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MapPin, AlertTriangle, Fuel, Gauge, Thermometer, CheckCircle, Clock, Navigation } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import dynamic from 'next/dynamic';
+import api from '@/lib/axios';
 
 // Dynamically import the map
 const DriverNavigationMap = dynamic(() => import('@/components/driver-navigation-map').then(mod => ({ default: mod.DriverNavigationMap })), { ssr: false });
 
-// Mock types
+// Types
+type Station = {
+    id: string;
+    name: string;
+    coordinates: [number, number];
+    order: number;
+    estimatedArrival?: string;
+};
+
 type Trip = {
     id: string;
     lineId: string;
     startTime: string;
     endTime: string;
-    currentStation: string;
-    nextStation: string;
+    scheduledStartTime: string;
+    scheduledEndTime: string;
+    currentStation: Station;
+    nextStation: Station;
     delay: number;
-    status: 'scheduled' | 'in-progress' | 'completed';
-    line: { number: string; name: string };
+    status: 'scheduled' | 'boarding' | 'in-transit' | 'completed';
+    line: {
+        number: string;
+        name: string;
+        color?: string;
+    };
+    vehicleId: string;
 };
 
 type VehicleMetrics = {
@@ -42,44 +58,86 @@ export default function CurrentTripPage() {
     const [metrics, setMetrics] = useState<VehicleMetrics | null>(null);
     const [loading, setLoading] = useState(true);
     const [incidentOpen, setIncidentOpen] = useState(false);
+    const [incidentData, setIncidentData] = useState({
+        type: '',
+        description: ''
+    });
 
-    // Mock coordinates for the map
+    // Mock coordinates for the map (fallback)
     const driverLocation: [number, number] = [33.9860, -6.8650]; // Somewhere in Rabat
-    const nextStationCoords: [number, number] = [33.9900, -6.8600];
 
     useEffect(() => {
-        // Mock fetch current trip
-        const mockTrip: Trip = {
-            id: "T2",
-            lineId: "L2",
-            startTime: "2023-10-27T10:00:00",
-            endTime: "2023-10-27T11:00:00",
-            currentStation: "Library",
-            nextStation: "Tech Park",
-            delay: 2,
-            status: "in-progress",
-            line: { number: "102", name: "University - Mall" }
+        const fetchTripData = async () => {
+            try {
+                const response = await api.get('/driver/trips/current');
+                setTrip(response.data.trip);
+
+                if (response.data.trip?.vehicleId) {
+                    const metricsRes = await api.get(`/driver/vehicles/${response.data.trip.vehicleId}/metrics`);
+                    setMetrics(metricsRes.data.metrics);
+                } else {
+                    // Fallback mock metrics if no vehicle assigned or API fails
+                    setMetrics({
+                        fuelLevel: 75,
+                        autonomy: 450,
+                        engineStatus: "Good",
+                        temperature: 85
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching trip data:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
-        const mockMetrics: VehicleMetrics = {
-            fuelLevel: 75,
-            autonomy: 450,
-            engineStatus: "Good",
-            temperature: 85
-        };
+        if (user?.role === 'driver') {
+            fetchTripData();
+        }
+    }, [user]);
 
-        setTimeout(() => {
-            setTrip(mockTrip);
-            setMetrics(mockMetrics);
-            setLoading(false);
-        }, 800);
-    }, []);
-
-    const handleReportIncident = (e: React.FormEvent) => {
+    const handleReportIncident = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIncidentOpen(false);
-        // In a real app, this would send data to the backend
-        alert("Incident reported successfully. Control center notified.");
+        if (!trip) return;
+
+        try {
+            await api.post('/driver/incidents', {
+                tripId: trip.id,
+                type: incidentData.type,
+                description: incidentData.description,
+                priority: 'medium', // Default priority
+                location: {
+                    coordinates: driverLocation, // Should use real GPS
+                    address: "Current Location"
+                }
+            });
+            setIncidentOpen(false);
+            setIncidentData({ type: '', description: '' });
+            alert("Incident reported successfully. Control center notified.");
+        } catch (error) {
+            console.error("Error reporting incident:", error);
+            alert("Failed to report incident.");
+        }
+    };
+
+    const handleArrival = async () => {
+        if (!trip) return;
+
+        try {
+            // Assuming arriving at next station
+            await api.post(`/driver/trips/${trip.id}/arrival`, {
+                stationId: trip.nextStation.id,
+                actualArrivalTime: new Date().toISOString(),
+                passengerCount: 0 // Placeholder
+            });
+
+            // Refresh trip data
+            const response = await api.get('/driver/trips/current');
+            setTrip(response.data.trip);
+        } catch (error) {
+            console.error("Error updating arrival:", error);
+            alert("Failed to update arrival status.");
+        }
     };
 
     if (loading) {
@@ -126,7 +184,7 @@ export default function CurrentTripPage() {
                             <Clock className="h-4 w-4" />
                             <span>Started at {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             <span className="mx-1">•</span>
-                            <span>Bus ID: {user?.id === '2' ? 'BUS-101' : 'Unknown'}</span>
+                            <span>Bus ID: {trip.vehicleId || 'Unknown'}</span>
                         </div>
                     </div>
 
@@ -153,7 +211,7 @@ export default function CurrentTripPage() {
                                 <div className="flex items-start justify-between mb-4">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">Next Station</p>
-                                        <h2 className="text-2xl font-bold text-slate-900">{trip.nextStation}</h2>
+                                        <h2 className="text-2xl font-bold text-slate-900">{trip.nextStation?.name || 'End of Line'}</h2>
                                     </div>
                                     <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
                                         <MapPin className="h-5 w-5 text-blue-600" />
@@ -163,15 +221,22 @@ export default function CurrentTripPage() {
                                 <div className="flex items-center gap-4 mt-2">
                                     <div className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                                         <span className="block text-xs text-slate-500">ETA</span>
-                                        <span className="font-bold text-slate-900">3 min</span>
+                                        <span className="font-bold text-slate-900">
+                                            {trip.nextStation?.estimatedArrival
+                                                ? Math.ceil((new Date(trip.nextStation.estimatedArrival).getTime() - new Date().getTime()) / 60000) + ' min'
+                                                : 'N/A'}
+                                        </span>
                                     </div>
                                     <div className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                                         <span className="block text-xs text-slate-500">Distance</span>
-                                        <span className="font-bold text-slate-900">1.2 km</span>
+                                        <span className="font-bold text-slate-900">-- km</span>
                                     </div>
                                 </div>
 
-                                <Button className="w-full mt-6 bg-slate-900 hover:bg-slate-800 h-12 text-base shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px]">
+                                <Button
+                                    onClick={handleArrival}
+                                    className="w-full mt-6 bg-slate-900 hover:bg-slate-800 h-12 text-base shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px]"
+                                >
                                     <CheckCircle className="mr-2 h-5 w-5" />
                                     Arrived at Station
                                 </Button>
@@ -228,7 +293,10 @@ export default function CurrentTripPage() {
                                     <div className="grid gap-4 py-4">
                                         <div className="grid gap-2">
                                             <Label htmlFor="type">Incident Type</Label>
-                                            <Select required>
+                                            <Select
+                                                required
+                                                onValueChange={(val) => setIncidentData({ ...incidentData, type: val })}
+                                            >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select type" />
                                                 </SelectTrigger>
@@ -243,7 +311,14 @@ export default function CurrentTripPage() {
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="description">Description</Label>
-                                            <Textarea id="description" placeholder="Describe what happened..." required className="min-h-[100px]" />
+                                            <Textarea
+                                                id="description"
+                                                placeholder="Describe what happened..."
+                                                required
+                                                className="min-h-[100px]"
+                                                value={incidentData.description}
+                                                onChange={(e) => setIncidentData({ ...incidentData, description: e.target.value })}
+                                            />
                                         </div>
                                     </div>
                                     <DialogFooter>
@@ -260,8 +335,8 @@ export default function CurrentTripPage() {
                             <DriverNavigationMap
                                 driverLocation={driverLocation}
                                 nextStation={{
-                                    name: trip.nextStation,
-                                    coordinates: nextStationCoords
+                                    name: trip.nextStation?.name || 'Unknown',
+                                    coordinates: trip.nextStation?.coordinates || [0, 0]
                                 }}
                             />
 

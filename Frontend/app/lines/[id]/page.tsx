@@ -9,23 +9,32 @@ import { ArrowLeft, Clock, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import locationsData from '@/data/rabat-locations.json';
+import api from '@/lib/axios';
 
 // Dynamically import LineMap to avoid SSR issues
 const LineMap = dynamic(() => import('@/components/line-map').then(mod => ({ default: mod.LineMap })), { ssr: false });
 
 // Types
 type Station = {
+    id: string;
     name: string;
     coordinates: [number, number];
+    order: number;
+    address: string;
+    estimatedArrival: string;
 };
 
 type Line = {
     id: string;
     number: string;
     name: string;
-    stations: Station[];
+    color: string;
     schedule: string;
+    status: 'active' | 'inactive';
+    stations: Station[];
+    estimatedDuration: number;
+    distance: number;
+    price: number;
 };
 
 export default function LineDetailPage() {
@@ -34,70 +43,21 @@ export default function LineDetailPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Helper to find coordinates by name
-        const getCoords = (name: string): [number, number] => {
-            const loc = locationsData.locations.find(l => l.name === name);
-            return loc ? [loc.coordinates[0], loc.coordinates[1]] as [number, number] : [34.020882, -6.841650]; // Default to Rabat center
-        };
-
-        // Mock fetch line details with real Rabat data
-        const fetchLine = () => {
+        const fetchLine = async () => {
             const lineId = params.id as string;
-            let mockLine: Line | null = null;
-
-            if (lineId === 'L1') {
-                mockLine = {
-                    id: 'L1',
-                    number: '101',
-                    name: 'ENSIAS - Hassan Tower',
-                    stations: [
-                        { name: 'ENSIAS', coordinates: getCoords('ENSIAS') },
-                        { name: 'Mohammed V University', coordinates: getCoords('Mohammed V University') },
-                        { name: 'Agdal', coordinates: getCoords('Agdal') },
-                        { name: 'Jardin d\'Essais Botaniques', coordinates: getCoords('Jardin d\'Essais Botaniques') },
-                        { name: 'Place Pietri', coordinates: getCoords('Place Pietri') },
-                        { name: 'Rabat Ville Train Station', coordinates: getCoords('Rabat Ville Train Station') },
-                        { name: 'Hassan Tower', coordinates: getCoords('Hassan Tower') }
-                    ],
-                    schedule: 'Every 15 mins'
-                };
-            } else if (lineId === 'L2') {
-                mockLine = {
-                    id: 'L2',
-                    number: '102',
-                    name: 'Yacoub El Mansour - Marina',
-                    stations: [
-                        { name: 'Yacoub El Mansour', coordinates: getCoords('Yacoub El Mansour') },
-                        { name: 'Stade Moulay Abdallah', coordinates: getCoords('Stade Moulay Abdallah') },
-                        { name: 'Ocean', coordinates: getCoords('Ocean') },
-                        { name: 'Medina of Rabat', coordinates: getCoords('Medina of Rabat') },
-                        { name: 'Kasbah of the Udayas', coordinates: getCoords('Kasbah of the Udayas') },
-                        { name: 'Bouregreg Marina', coordinates: getCoords('Bouregreg Marina') }
-                    ],
-                    schedule: 'Every 20 mins'
-                };
-            } else if (lineId === 'L3') {
-                mockLine = {
-                    id: 'L3',
-                    number: '104',
-                    name: 'Hay Riad - Salé',
-                    stations: [
-                        { name: 'Hay Riad', coordinates: getCoords('Hay Riad') },
-                        { name: 'Mega Mall', coordinates: getCoords('Mega Mall') },
-                        { name: 'Souissi', coordinates: getCoords('Souissi') },
-                        { name: 'Hay Nahda', coordinates: getCoords('Hay Nahda') },
-                        { name: 'Rabat-Salé Airport', coordinates: getCoords('Rabat-Salé Airport') },
-                        { name: 'Salé', coordinates: getCoords('Salé') }
-                    ],
-                    schedule: 'Every 30 mins'
-                };
+            try {
+                const response = await api.get(`/lines/${lineId}`);
+                setLine(response.data.line);
+            } catch (error) {
+                console.error("Error fetching line details:", error);
+            } finally {
+                setLoading(false);
             }
-
-            setLine(mockLine);
-            setLoading(false);
         };
 
-        setTimeout(fetchLine, 500);
+        if (params.id) {
+            fetchLine();
+        }
     }, [params.id]);
 
     if (loading) {
@@ -139,7 +99,7 @@ export default function LineDetailPage() {
                         <Card>
                             <CardHeader>
                                 <div className="flex items-center gap-3 mb-2">
-                                    <Badge className="bg-blue-600 text-lg px-3 py-1">
+                                    <Badge className="text-lg px-3 py-1" style={{ backgroundColor: line.color || '#2563eb' }}>
                                         {line.number}
                                     </Badge>
                                     <Badge variant="outline" className="flex items-center gap-1 text-slate-600">
@@ -156,7 +116,7 @@ export default function LineDetailPage() {
                                         const isEnd = index === line.stations.length - 1;
 
                                         return (
-                                            <div key={station.name} className="relative">
+                                            <div key={station.id || index} className="relative">
                                                 <div className={`absolute -left-[41px] top-0 w-5 h-5 rounded-full border-4 border-white ${isStart ? 'bg-blue-500' : isEnd ? 'bg-red-500' : 'bg-slate-300'} shadow-sm`}></div>
                                                 <div className="flex justify-between items-center">
                                                     <span className={`font-medium ${isStart || isEnd ? 'text-slate-900' : 'text-slate-500'}`}>
@@ -175,7 +135,7 @@ export default function LineDetailPage() {
                         <Card className="h-[600px] overflow-hidden relative bg-slate-100 border-0 shadow-md">
                             <LineMap
                                 stations={line.stations}
-                                lineColor={line.id === 'L1' ? '#2563eb' : '#0891b2'}
+                                lineColor={line.color || '#2563eb'}
                             />
 
                             <div className="absolute top-4 right-4 bg-white p-3 rounded-lg shadow-md z-[400]">

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
-import { signupAction } from '@/lib/actions';
+import api from '@/lib/axios';
+import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -14,19 +15,31 @@ export default function SignupPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const { login } = useAuth();
+
     async function handleSubmit(formData: FormData) {
         setLoading(true);
         setError('');
 
+        const firstname = formData.get('firstname') as string;
+        const lastname = formData.get('lastname') as string;
+        const email = formData.get('email') as string;
+        const password = formData.get('pwd') as string;
+
         try {
-            const result = await signupAction(formData);
-            if (result.success) {
-                router.push('/login');
+            const response = await api.post('/auth/signup', { firstname, lastname, email, password });
+
+            if (response.data.success) {
+                const { user, tokens } = response.data;
+                const userWithTokens = { ...user, tokens };
+                login(userWithTokens);
+                router.push('/search');
             } else {
-                setError(result.error || 'Signup failed');
+                setError(response.data.error || 'Signup failed');
             }
-        } catch (err) {
-            setError('An unexpected error occurred');
+        } catch (err: any) {
+            console.error('Signup error:', err);
+            setError(err.response?.data?.error || 'An unexpected error occurred');
         } finally {
             setLoading(false);
         }
