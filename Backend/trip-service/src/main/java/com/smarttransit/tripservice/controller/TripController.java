@@ -1,18 +1,16 @@
 package com.smarttransit.tripservice.controller;
 
-import com.smarttransit.tripservice.dto.TripDto;
-import com.smarttransit.tripservice.model.Trip.TripStatus;
+import com.smarttransit.tripservice.model.*;
 import com.smarttransit.tripservice.service.TripService;
-import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/trips")
+@RequestMapping("/api")
 public class TripController {
 
     private final TripService tripService;
@@ -21,71 +19,83 @@ public class TripController {
         this.tripService = tripService;
     }
 
-    @GetMapping
-    public Page<TripDto> list(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search
-    ) {
-        return tripService.findAll(page, size, search);
-    }
-
-    @GetMapping("/route/{routeId}")
-    public Page<TripDto> listByRoute(
-            @PathVariable Long routeId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return tripService.findByRouteId(routeId, page, size);
-    }
-
-    @GetMapping("/vehicle/{vehicleId}")
-    public Page<TripDto> listByVehicle(
-            @PathVariable Long vehicleId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return tripService.findByVehicleId(vehicleId, page, size);
-    }
-
-    @GetMapping("/status/{status}")
-    public Page<TripDto> listByStatus(
-            @PathVariable TripStatus status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return tripService.findByStatus(status, page, size);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<TripDto> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(tripService.findById(id));
-    }
-
-    @PostMapping
-    public ResponseEntity<TripDto> create(@Valid @RequestBody TripDto dto) {
-        TripDto created = tripService.create(dto);
-        return ResponseEntity.created(URI.create("/api/trips/" + created.getId())).body(created);
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<TripDto> update(@PathVariable Long id, @Valid @RequestBody TripDto dto) {
-        return ResponseEntity.ok(tripService.update(id, dto));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        tripService.delete(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/{id}")
-    public ResponseEntity<TripDto> patch(@PathVariable Long id, @RequestBody Map<String, Object> updates) {
-        return ResponseEntity.ok(tripService.partialUpdate(id, updates));
-    }
-
-    @GetMapping("/ping")
+    @GetMapping("/trips/ping")
     public Map<String, String> ping() {
         return Map.of("service", "trip-service", "status", "ok");
+    }
+
+    // Routes endpoints
+    @GetMapping("/routes")
+    public List<Route> getRoutes() { return tripService.getAllRoutes(); }
+
+    @GetMapping("/routes/{id}")
+    public ResponseEntity<Route> getRoute(@PathVariable Long id) {
+        Route r = tripService.getRoute(id);
+        return r == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(r);
+    }
+
+    @PostMapping("/routes")
+    public Route createRoute(@RequestBody Route route) { return tripService.createRoute(route); }
+
+    @PutMapping("/routes/{id}")
+    public ResponseEntity<Route> updateRoute(@PathVariable Long id, @RequestBody Route route) {
+        Route r = tripService.updateRoute(id, route);
+        return r == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(r);
+    }
+
+    @GetMapping("/routes/{id}/stops")
+    public List<Stop> getRouteStops(@PathVariable Long id) { return tripService.getRouteStops(id); }
+
+    // Stops endpoints
+    @GetMapping("/stops")
+    public List<Stop> getStops() { return tripService.getAllStops(); }
+
+    @PostMapping("/stops")
+    public Stop createStop(@RequestBody Stop stop) { return tripService.createStop(stop); }
+
+    // Schedules endpoints
+    @GetMapping("/schedules/route/{routeId}")
+    public List<Schedule> getSchedulesByRoute(@PathVariable Long routeId) { return tripService.getSchedulesByRoute(routeId); }
+
+    @PostMapping("/schedules")
+    public Schedule createSchedule(@RequestBody Schedule schedule) { return tripService.createSchedule(schedule); }
+
+    // Trips endpoints
+    @GetMapping("/trips/search")
+    public List<Trip> searchTrips(@RequestParam String origin, @RequestParam String destination, @RequestParam String date) {
+        LocalDate d = LocalDate.parse(date);
+        return tripService.searchTrips(origin, destination, d);
+    }
+
+    @GetMapping("/trips/{id}")
+    public ResponseEntity<Trip> getTrip(@PathVariable Long id) {
+        Trip t = tripService.getTrip(id);
+        return t == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(t);
+    }
+
+    @GetMapping("/trips/driver/{driverId}")
+    public List<Trip> getTripsByDriver(@PathVariable Long driverId) { return tripService.getTripsByDriver(driverId); }
+
+    @PostMapping("/trips")
+    public Trip createTrip(@RequestBody Trip trip) { return tripService.createTrip(trip); }
+
+    @PutMapping("/trips/{id}/assign")
+    public ResponseEntity<Trip> assignTrip(@PathVariable Long id,
+                                           @RequestParam Long driverId,
+                                           @RequestParam Long busId) {
+        Trip t = tripService.assignTrip(id, driverId, busId);
+        return t == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(t);
+    }
+
+    @PutMapping("/trips/{id}/status")
+    public ResponseEntity<Trip> updateTripStatus(@PathVariable Long id, @RequestParam String status) {
+        Trip t = tripService.updateTripStatus(id, status);
+        return t == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(t);
+    }
+
+    @PutMapping("/trips/{id}/cancel")
+    public ResponseEntity<Trip> cancelTrip(@PathVariable Long id) {
+        Trip t = tripService.cancelTrip(id);
+        return t == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(t);
     }
 }

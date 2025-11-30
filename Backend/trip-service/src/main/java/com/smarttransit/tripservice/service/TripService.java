@@ -1,19 +1,32 @@
 package com.smarttransit.tripservice.service;
 
-import com.smarttransit.tripservice.dto.TripDto;
-import com.smarttransit.tripservice.model.Trip.TripStatus;
-import org.springframework.data.domain.Page;
+import com.smarttransit.tripservice.model.*;
 
-import java.util.Map;
+import java.time.LocalDate;
+import java.util.List;
 
 public interface TripService {
-    Page<TripDto> findAll(int page, int size, String search);
-    TripDto findById(Long id);
-    TripDto create(TripDto dto);
-    TripDto update(Long id, TripDto dto);
-    TripDto partialUpdate(Long id, Map<String, Object> updates);
-    void delete(Long id);
-    Page<TripDto> findByRouteId(Long routeId, int page, int size);
-    Page<TripDto> findByVehicleId(Long vehicleId, int page, int size);
-    Page<TripDto> findByStatus(TripStatus status, int page, int size);
+    // Routes
+    List<Route> getAllRoutes();
+    Route getRoute(Long id);
+    Route createRoute(Route route);
+    Route updateRoute(Long id, Route route);
+    List<Stop> getRouteStops(Long routeId);
+
+    // Stops
+    List<Stop> getAllStops();
+    Stop createStop(Stop stop);
+
+    // Schedules
+    List<Schedule> getSchedulesByRoute(Long routeId);
+    Schedule createSchedule(Schedule schedule);
+
+    // Trips
+    List<Trip> searchTrips(String origin, String destination, LocalDate date);
+    Trip getTrip(Long id);
+    List<Trip> getTripsByDriver(Long driverId);
+    Trip createTrip(Trip trip);
+    Trip assignTrip(Long id, Long driverId, Long busId);
+    Trip updateTripStatus(Long id, String status);
+    Trip cancelTrip(Long id);
 }
