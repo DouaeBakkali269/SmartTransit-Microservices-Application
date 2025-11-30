@@ -24,11 +24,14 @@ public class AuthService {
     private final TokenService tokenService;
     private final BCryptPasswordEncoder passwordEncoder;
 
+    private final KafkaProducerService kafkaProducerService;
+
     @Autowired
-    public AuthService(UserRepository userRepository, TokenService tokenService, BCryptPasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, TokenService tokenService, BCryptPasswordEncoder passwordEncoder, KafkaProducerService kafkaProducerService) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
+        this.kafkaProducerService = kafkaProducerService;
     }
 
     /**
@@ -84,6 +87,9 @@ public class AuthService {
             // Store tokens in database
             tokenService.storeToken(user.getId(), accessToken, TokenType.ACCESS_TOKEN);
             tokenService.storeToken(user.getId(), refreshToken, TokenType.REFRESH_TOKEN);
+
+            // Emit login event
+            kafkaProducerService.sendMessage("auth.user.logged-in", user.getEmail());
 
             return new LoginResponse(accessToken, refreshToken, user.getId(), user.getEmail(), roles);
         } catch (Exception e) {
@@ -163,5 +169,61 @@ public class AuthService {
     public User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    /**
+     * Request password reset
+     */
+    public void requestPasswordReset(String email) {
+        // Check if user exists
+        userRepository.findByEmail(email).ifPresent(user -> {
+            // Generate reset token (using refresh token mechanism for simplicity or a dedicated one)
+            String resetToken = tokenService.generateRefreshToken(email); // In real app, use specific reset token with short expiry
+            
+            // Emit password reset requested event
+            // Payload could be a simple object or map
+            kafkaProducerService.sendMessage("auth.password.reset-requested", new PasswordResetEvent(email, resetToken));
+        });
+    }
+    
+    // Simple DTO for the event
+    public static class PasswordResetEvent {
+        public String email;
+        public String token;
+        
+        public PasswordResetEvent(String email, String token) {
+            this.email = email;
+            this.token = token;
+        }
+    }
+
+    /**
+     * Reset password using token
+     */
+    public AuthResponse resetPassword(String token, String newPassword) {
+        try {
+            // Validate token (assuming it's a refresh token or similar valid token)
+            if (!tokenService.validateToken(token)) {
+                return AuthResponse.error("Invalid or expired token");
+            }
+
+            String email = tokenService.getEmailFromToken(token);
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Update password
+            user.setPassword(passwordEncoder.encode(newPassword));
+            userRepository.save(user);
+
+            // Revoke the token used for reset
+            tokenService.revokeToken(token);
+            
+            // Revoke all other tokens for security (optional, but good practice)
+            tokenService.revokeAllUserTokens(user.getId());
+
+            return AuthResponse.success("Password reset successfully");
+        } catch (Exception e) {
+            return AuthResponse.error("Password reset failed: " + e.getMessage());
+        }
     }
 }

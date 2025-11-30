@@ -62,6 +62,7 @@ public class PublicAuthController {
 
     @PostMapping("/password/reset-request")
     public ResponseEntity<AuthResponse> passwordResetRequest(@Valid @RequestBody PasswordResetRequestDto request) {
+        authService.requestPasswordReset(request.getEmail());
         return ResponseEntity.ok(AuthResponse.success("If the email exists, a reset link was sent"));
     }
 
@@ -76,7 +77,7 @@ public class PublicAuthController {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             return ResponseEntity.ok(AuthResponse.error("Passwords do not match"));
         }
-        return ResponseEntity.ok(AuthResponse.success("Password has been reset"));
+        return ResponseEntity.ok(authService.resetPassword(request.getToken(), request.getNewPassword()));
     }
 
     private PublicUserDto toPublicUser(Long userId, String email, List<String> roles) {
