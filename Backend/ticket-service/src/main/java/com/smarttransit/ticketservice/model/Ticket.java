@@ -2,6 +2,7 @@ package com.smarttransit.ticketservice.model;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -47,6 +48,18 @@ public class Ticket {
     private Instant createdAt;
     private Instant updatedAt;
 
+    // Extended fields from schema
+    private String bookingReference;
+    private String qrCodeUrl;
+    private String qrCodeData;
+    private Instant qrCodeExpiresAt;
+    private Integer exchangesRemaining;
+    private Double price;
+    private Integer passengers;
+    private String departureStation;
+    private String arrivalStation;
+    private LocalDate date;
+
     @PrePersist
     public void prePersist() {
         createdAt = Instant.now();
@@ -56,6 +69,9 @@ public class Ticket {
         }
         if (purchaseTime == null) {
             purchaseTime = LocalDateTime.now();
+        }
+        if (exchangesRemaining == null) {
+            exchangesRemaining = 1;
         }
     }
 
@@ -67,6 +83,7 @@ public class Ticket {
     public enum TicketStatus {
         PENDING,
         CONFIRMED,
+        EXCHANGED,
         CANCELLED,
         USED
     }

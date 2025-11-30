@@ -20,4 +20,6 @@ public class TripServiceDto {
     private String status;
     private Instant createdAt;
     private Instant updatedAt;
+    private Integer availableSeats;
+    private Integer totalSeats;
 }

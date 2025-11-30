@@ -25,6 +25,7 @@ public class TicketServiceImpl implements TicketService {
 
     private final TicketRepository repository;
     private final TicketMapper mapper;
+    private final com.smarttransit.ticketservice.repository.ExchangeHistoryRepository exchangeHistoryRepository;
 
     @Override
     public Page<TicketDto> findAll(int page, int size, String search) {
@@ -83,8 +84,46 @@ public class TicketServiceImpl implements TicketService {
         if (updates.containsKey("purchaseTime")) {
             existing.setPurchaseTime(LocalDateTime.parse(String.valueOf(updates.get("purchaseTime"))));
         }
+        if (updates.containsKey("exchangesRemaining")) {
+            existing.setExchangesRemaining(Integer.valueOf(String.valueOf(updates.get("exchangesRemaining"))));
+        }
+        if (updates.containsKey("price")) {
+            existing.setPrice(Double.valueOf(String.valueOf(updates.get("price"))));
+        }
+        if (updates.containsKey("passengers")) {
+            existing.setPassengers(Integer.valueOf(String.valueOf(updates.get("passengers"))));
+        }
+        if (updates.containsKey("date")) {
+            existing.setDate(java.time.LocalDate.parse(String.valueOf(updates.get("date"))));
+        }
 
         Ticket saved = repository.save(existing);
+        return mapper.toDto(saved);
+    }
+
+    @Override
+    public TicketDto recordExchange(Long ticketId, Long originalTripId, Long newTripId) {
+        Ticket existing = repository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: " + ticketId));
+        Integer remaining = existing.getExchangesRemaining();
+        if (remaining == null) remaining = 0;
+        if (remaining <= 0) {
+            throw new IllegalStateException("No exchanges remaining");
+        }
+
+        Long prevTrip = existing.getTripId();
+        existing.setTripId(newTripId);
+        existing.setExchangesRemaining(remaining - 1);
+        existing.setStatus(TicketStatus.EXCHANGED);
+        Ticket saved = repository.save(existing);
+
+        var eh = new com.smarttransit.ticketservice.model.ExchangeHistory();
+        eh.setTicketId(ticketId);
+        eh.setOriginalTripId(prevTrip);
+        eh.setNewTripId(newTripId);
+        eh.setExchangedAt(java.time.Instant.now());
+        exchangeHistoryRepository.save(eh);
+
         return mapper.toDto(saved);
     }
 

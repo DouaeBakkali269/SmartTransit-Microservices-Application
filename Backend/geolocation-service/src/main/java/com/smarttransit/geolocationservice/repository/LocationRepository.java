@@ -11,4 +11,6 @@ import com.smarttransit.geolocationservice.model.Location;
 public interface LocationRepository extends JpaRepository<Location, Long> {
     List<Location> findByNameContainingIgnoreCase(String q);
     List<Location> findTop10ByOrderBySearchCountDesc();
+    List<Location> findByTypeAndNameContainingIgnoreCase(String type, String q);
+    Location findFirstByNameIgnoreCase(String name);
 }

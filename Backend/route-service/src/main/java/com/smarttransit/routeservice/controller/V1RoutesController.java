@@ -50,7 +50,8 @@ public class V1RoutesController {
             t1.setDepartureTime(LocalDateTime.now().plusMinutes(15).toString());
             t1.setArrivalTime(LocalDateTime.now().plusMinutes(45).toString());
             t1.setDurationMinutes(30);
-            t1.setPriceCents(250);
+            t1.setPrice(2.5);
+            t1.setServices(java.util.Arrays.asList("wifi", "ac"));
             t1.setAvailableSeats(12);
             trips.add(t1);
 
@@ -62,7 +63,8 @@ public class V1RoutesController {
             t2.setDepartureTime(LocalDateTime.now().plusMinutes(25).toString());
             t2.setArrivalTime(LocalDateTime.now().plusMinutes(70).toString());
             t2.setDurationMinutes(45);
-            t2.setPriceCents(300);
+            t2.setPrice(3.0);
+            t2.setServices(java.util.Arrays.asList("ac"));
             t2.setAvailableSeats(8);
             trips.add(t2);
 

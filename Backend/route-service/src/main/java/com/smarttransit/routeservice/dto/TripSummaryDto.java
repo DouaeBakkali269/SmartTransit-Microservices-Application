@@ -15,6 +15,7 @@ public class TripSummaryDto {
     private String departureTime;
     private String arrivalTime;
     private Integer durationMinutes;
-    private Integer priceCents;
+    private Double price;
     private Integer availableSeats;
+    private java.util.List<String> services;
 }
