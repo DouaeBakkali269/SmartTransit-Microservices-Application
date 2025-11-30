@@ -31,4 +31,15 @@ public class TicketDto {
 
     private Instant createdAt;
     private Instant updatedAt;
+    // Extended fields from schemas
+    private String bookingReference;
+    private String qrCodeUrl;
+    private String qrCodeData;
+    private Instant qrCodeExpiresAt;
+    private Integer exchangesRemaining;
+    private Double price;
+    private Integer passengers;
+    private String departureStation;
+    private String arrivalStation;
+    private java.time.LocalDate date;
 }

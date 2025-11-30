@@ -27,16 +27,23 @@ export default function LinesPage() {
             {
                 id: "L1",
                 number: "101",
-                name: "Downtown - Airport",
-                stations: ["Central Station", "Market Square", "City Park", "Airport Terminal 1"],
+                name: "ENSIAS - Hassan Tower",
+                stations: ["ENSIAS", "Mohammed V University", "Agdal", "Jardin d'Essais", "Rabat Ville", "Hassan Tower"],
                 schedule: "Every 15 mins"
             },
             {
                 id: "L2",
                 number: "102",
-                name: "University - Mall",
-                stations: ["University Main Gate", "Library", "Tech Park", "Grand Mall"],
+                name: "Yacoub El Mansour - Marina",
+                stations: ["Yacoub El Mansour", "Stade Moulay Abdallah", "Ocean", "Medina", "Kasbah", "Marina"],
                 schedule: "Every 20 mins"
+            },
+            {
+                id: "L3",
+                number: "104",
+                name: "Hay Riad - Salé",
+                stations: ["Hay Riad", "Mega Mall", "Souissi", "Hay Nahda", "Airport", "Salé"],
+                schedule: "Every 30 mins"
             }
         ];
 

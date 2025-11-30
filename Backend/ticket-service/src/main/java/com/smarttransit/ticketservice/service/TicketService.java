@@ -16,4 +16,6 @@ public interface TicketService {
     Page<TicketDto> findByUserId(Long userId, int page, int size);
     Page<TicketDto> findByTripId(Long tripId, int page, int size);
     Page<TicketDto> findByStatus(TicketStatus status, int page, int size);
+    // Record an exchange and return updated ticket
+    TicketDto recordExchange(Long ticketId, Long originalTripId, Long newTripId);
 }

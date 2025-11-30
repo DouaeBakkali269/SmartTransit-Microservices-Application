@@ -38,6 +38,8 @@ public class User {
 
     private Instant createdAt;
     private Instant updatedAt;
+    // avatar URL (stored as string URL)
+    private String avatar;
 
     @PrePersist
     public void prePersist() {

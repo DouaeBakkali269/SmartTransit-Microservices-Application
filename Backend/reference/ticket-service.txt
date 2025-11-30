@@ -1,0 +1,39 @@
+SERVICE: Ticket Service
+DESCRIPTION: Manages bookings, ticket generation, QR codes, and validation.
+
+OWNED DATA (SCHEMAS):
+- Bookings
+- Tickets
+- TicketValidations
+- ExchangeHistory
+
+API ENDPOINTS:
+POST /api/v1/bookings
+    - Creates a "Pending" booking.
+GET /api/v1/bookings/{bookingId}
+GET /api/v1/bookings/{bookingId}/validate
+POST /api/v1/bookings/calculate-price
+    - Logic to sum ticket prices + apply discounts.
+
+GET /api/v1/tickets
+    - User's tickets.
+GET /api/v1/tickets/{ticketId}
+POST /api/v1/tickets/{ticketId}/exchange
+POST /api/v1/tickets/{ticketId}/exchange-eligibility
+DELETE /api/v1/tickets/{ticketId}
+    - Cancel/Refund logic.
+GET /api/v1/tickets/{ticketId}/qr-code
+GET /api/v1/tickets/{ticketId}/download
+POST /api/v1/tickets/validate
+    - Used by scanning devices/Driver app.
+POST /api/v1/tickets/generate
+    - Finalize ticket after payment.
+
+GET /api/v1/admin/dashboard
+    - Aggregates Revenue data and Ticket sales for dashboard.
+GET /api/v1/admin/dashboard/realtime
+    - Recent bookings.
+
+KAFKA EVENTS:
+- Consumes: `payment.success` (Triggers ticket generation).
+- Produces: `booking.created`, `ticket.issued`, `ticket.cancelled`, `ticket.validated`.

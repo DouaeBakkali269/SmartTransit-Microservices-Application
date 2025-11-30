@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, CheckCircle, Clock, Eye } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Eye, Bus, Map } from 'lucide-react';
 
 // Mock types
 type Incident = {
@@ -20,6 +20,8 @@ type Incident = {
     date: string;
     status: 'open' | 'investigating' | 'resolved';
     priority: 'low' | 'medium' | 'high';
+    line: string; // Added line
+    bus: string;  // Added bus
 };
 
 export default function ManageIncidentsPage() {
@@ -39,7 +41,9 @@ export default function ManageIncidentsPage() {
                 description: "Engine overheating warning light came on during uphill climb. Vehicle needs inspection.",
                 date: "2023-10-27T10:15:00",
                 status: "open",
-                priority: "high"
+                priority: "high",
+                line: "Line 102",
+                bus: "BUS-101"
             },
             {
                 id: "I2",
@@ -49,7 +53,9 @@ export default function ManageIncidentsPage() {
                 description: "Heavy congestion due to road works on Main St. 15 min delay expected.",
                 date: "2023-10-20T08:30:00",
                 status: "resolved",
-                priority: "low"
+                priority: "low",
+                line: "Line 5",
+                bus: "BUS-204"
             },
             {
                 id: "I3",
@@ -59,7 +65,9 @@ export default function ManageIncidentsPage() {
                 description: "Dispute between passengers regarding seating.",
                 date: "2023-10-26T16:45:00",
                 status: "investigating",
-                priority: "medium"
+                priority: "medium",
+                line: "Line 12",
+                bus: "BUS-305"
             }
         ];
 
@@ -119,6 +127,7 @@ export default function ManageIncidentsPage() {
                                         <TableHead>ID</TableHead>
                                         <TableHead>Type</TableHead>
                                         <TableHead>Priority</TableHead>
+                                        <TableHead>Line / Bus</TableHead>
                                         <TableHead>Reported By</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Status</TableHead>
@@ -134,6 +143,12 @@ export default function ManageIncidentsPage() {
                                                 <Badge variant="outline" className={getPriorityColor(incident.priority)}>
                                                     {incident.priority}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col text-xs">
+                                                    <span className="font-medium">{incident.line}</span>
+                                                    <span className="text-slate-500">{incident.bus}</span>
+                                                </div>
                                             </TableCell>
                                             <TableCell>{incident.driverName}</TableCell>
                                             <TableCell>
@@ -186,13 +201,36 @@ export default function ManageIncidentsPage() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-slate-500 block">Driver</span>
-                                        <span className="font-medium">{selectedIncident.driverName}</span>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Driver</span>
+                                            <span className="font-medium flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">D</div>
+                                                {selectedIncident.driverName}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Vehicle</span>
+                                            <span className="font-medium flex items-center gap-2">
+                                                <Bus className="w-4 h-4 text-slate-400" />
+                                                {selectedIncident.bus}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block">Trip ID</span>
-                                        <span className="font-medium">{selectedIncident.tripId}</span>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Line</span>
+                                            <span className="font-medium flex items-center gap-2">
+                                                <Map className="w-4 h-4 text-slate-400" />
+                                                {selectedIncident.line}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-500 block text-xs uppercase tracking-wider mb-1">Trip ID</span>
+                                            <span className="font-medium font-mono bg-slate-100 px-2 py-0.5 rounded text-xs">
+                                                {selectedIncident.tripId}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 

@@ -1,0 +1,18 @@
+SERVICE: Vehicle Service
+DESCRIPTION: Manages physical vehicle inventory and IoT telemetry processing.
+
+OWNED DATA (SCHEMAS):
+- Vehicles
+- Telemetry
+
+API ENDPOINTS:
+GET /api/v1/admin/vehicles
+    - Fleet management.
+
+POST /api/v1/driver/telemetry/location
+    - High-frequency endpoint for GPS updates from hardware/app.
+GET /api/v1/driver/vehicles/{vehicleId}/metrics
+    - Real-time fuel/speed/engine status.
+
+KAFKA EVENTS:
+- Produces: `vehicle.location.updated` (High volume - consumed by Trip Service for ETAs and WebSocket Notification Service for live maps).

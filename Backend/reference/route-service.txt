@@ -1,0 +1,40 @@
+SERVICE: Route Service
+DESCRIPTION: Manages static transport data: Lines, Stations, and theoretical Routes.
+
+OWNED DATA (SCHEMAS):
+- Lines
+- Stations
+- LineStations (Junction)
+- (Route shapes/polylines)
+
+API ENDPOINTS:
+GET /api/v1/stations/{stationName}
+    - Station details.
+GET /api/v1/stations/search
+    - Specific station search (db query).
+
+GET /api/v1/lines
+    - List all bus lines.
+GET /api/v1/lines/{lineId}
+    - Detailed line info + stations list.
+GET /api/v1/lines/{lineNumber}/route
+    - Full map route (GeoJSON).
+POST /api/v1/routes/walking
+    - Calculates walking path between points (GraphHopper/OSM).
+
+GET /api/v1/admin/lines
+    - Admin CRUD for lines.
+GET /api/v1/admin/lines/{lineId}
+POST /api/v1/admin/lines
+PUT /api/v1/admin/lines/{lineId}
+DELETE /api/v1/admin/lines/{lineId}
+
+POST /api/v1/admin/lines/{lineId}/stations
+    - Add station to line.
+PUT /api/v1/admin/lines/{lineId}/stations/{stationId}
+DELETE /api/v1/admin/lines/{lineId}/stations/{stationId}
+POST /api/v1/admin/lines/{lineId}/route/calculate
+    - Auto-generate route based on stations.
+
+KAFKA EVENTS:
+- Produces: `line.created`, `line.updated`, `station.created` (Geolocation service listens to index these).

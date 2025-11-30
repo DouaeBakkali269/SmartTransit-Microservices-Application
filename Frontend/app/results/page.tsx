@@ -3,182 +3,426 @@
 import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Clock, MapPin, Bus, Filter } from 'lucide-react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { getTrips, getLines } from '@/lib/actions';
+import { RefreshCw, Bus } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { PaymentModal } from '@/components/payment-modal';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { calculateDistance } from '@/lib/distance';
+import { findNearestLocation } from '@/lib/geolocation';
+import rabatLocations from '@/data/rabat-locations.json';
+import { TripResultCard, type Trip } from '@/components/trip-result-card';
 
-// Mock types for client side
-type Trip = {
-    id: string;
-    lineId: string;
-    startTime: string;
-    endTime: string;
-    delay: number;
-    line?: Line;
-};
+// Location coordinates mapping (from rabat-locations.json)
+const locationCoordinates: Record<string, [number, number]> = {};
+rabatLocations.locations.forEach(loc => {
+    locationCoordinates[loc.name.toUpperCase()] = [loc.coordinates[0], loc.coordinates[1]];
+});
 
-type Line = {
-    id: string;
-    number: string;
-    name: string;
-};
+// Generate mock trips based on search parameters
+function generateMockTrips(
+    from: string,
+    to: string,
+    userLocation: [number, number],
+    fromCoords?: [number, number],
+    toCoords?: [number, number]
+): Trip[] {
+    let startStationName = from;
+    let endStationName = to;
+    let startStationCoords = locationCoordinates[from.toUpperCase()] || locationCoordinates['ENSIAS'];
+    let endStationCoords = locationCoordinates[to.toUpperCase()] || locationCoordinates['HASSAN TOWER'];
+
+    let walkingDeparture = null;
+    let walkingArrival = null;
+
+    // If exact coordinates are provided, find the nearest stations
+    if (fromCoords) {
+        const nearestStart = findNearestLocation(fromCoords[0], fromCoords[1]);
+        startStationName = nearestStart.name;
+        startStationCoords = nearestStart.coordinates;
+
+        // Apply 1.2x factor for walking path tortuosity
+        const walkDist = calculateDistance(fromCoords[0], fromCoords[1], startStationCoords[0], startStationCoords[1]) * 1.2;
+        if (walkDist > 0.05) { // Only show walking if distance > 50m
+            walkingDeparture = {
+                distance: parseFloat(walkDist.toFixed(2)),
+                duration: Math.min(Math.ceil(walkDist * 10), 5), // Cap at 5 mins
+                toStation: startStationName
+            };
+        }
+    }
+
+    if (toCoords) {
+        const nearestEnd = findNearestLocation(toCoords[0], toCoords[1]);
+        endStationName = nearestEnd.name;
+        endStationCoords = nearestEnd.coordinates;
+
+        // Apply 1.2x factor for walking path tortuosity
+        const walkDist = calculateDistance(toCoords[0], toCoords[1], endStationCoords[0], endStationCoords[1]) * 1.2;
+        if (walkDist > 0.05) {
+            walkingArrival = {
+                distance: parseFloat(walkDist.toFixed(2)),
+                duration: Math.min(Math.ceil(walkDist * 10), 5), // Cap at 5 mins
+                fromStation: endStationName
+            };
+        }
+    }
+
+    // Calculate distance between start and end stations
+    const straightDistance = calculateDistance(
+        startStationCoords[0],
+        startStationCoords[1],
+        endStationCoords[0],
+        endStationCoords[1]
+    );
+
+    // Estimate road distance (approx 1.3x straight line distance for urban routes)
+    const roadDistance = straightDistance * 1.3;
+
+    // Calculate duration based on realistic city bus speed
+    const averageSpeedKmh = 40;
+    const durationHours = roadDistance / averageSpeedKmh;
+
+    // Add 5 minutes for stops and boarding
+    const durationMinutes = Math.round(durationHours * 60) + 5;
+    const durationText = `${durationMinutes}min`;
+
+    // Base trips with different times
+    const baseTrips = [
+        { id: '1', time: '08:00', line: '101', operator: 'ALSA City Bus', services: ['Air Conditioning', 'WiFi'], isImmediate: true },
+        { id: '2', time: '09:00', line: '102', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
+        { id: '3', time: '10:30', line: '104', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
+        { id: '4', time: '12:00', line: '101', operator: 'ALSA City Bus', services: ['WiFi', 'Air Conditioning', 'USB Ports'] },
+        { id: '5', time: '14:00', line: '102', operator: 'ALSA City Bus', services: ['Air Conditioning'] },
+        { id: '6', time: '16:00', line: '104', operator: 'ALSA City Bus', services: ['WiFi', 'Air Conditioning'] },
+        { id: '7', time: '18:00', line: '101', operator: 'ALSA City Bus', services: [] }
+    ];
+
+    return baseTrips.map(trip => {
+        // Calculate arrival time
+        const [hours, minutes] = trip.time.split(':').map(Number);
+        const departureDate = new Date();
+        departureDate.setHours(hours, minutes, 0, 0);
+        const arrivalDate = new Date(departureDate.getTime() + durationMinutes * 60000);
+        const arrivalTime = `${arrivalDate.getHours().toString().padStart(2, '0')}:${arrivalDate.getMinutes().toString().padStart(2, '0')}`;
+
+        return {
+            id: trip.id,
+            lineNumber: trip.line,
+            operator: trip.operator,
+            departureStation: startStationName,
+            arrivalStation: endStationName,
+            departureTime: trip.time,
+            arrivalTime: arrivalTime,
+            duration: durationText,
+            type: 'Direct',
+            price: 5, // Standardized price
+            services: trip.services,
+            isImmediate: trip.isImmediate,
+            distance: parseFloat(roadDistance.toFixed(1)),
+            walkingDeparture: walkingDeparture || undefined,
+            walkingArrival: walkingArrival || undefined,
+            departureCoords: startStationCoords,
+            arrivalCoords: endStationCoords
+        };
+    });
+}
 
 export default function ResultsPage() {
     const searchParams = useSearchParams();
-    const start = searchParams.get('start');
-    const end = searchParams.get('end');
+    const from = searchParams.get('from') || 'ENSIAS';
+    const to = searchParams.get('to') || 'Hassan Tower';
+    const fromLat = searchParams.get('fromLat');
+    const fromLng = searchParams.get('fromLng');
+    const toLat = searchParams.get('toLat');
+    const toLng = searchParams.get('toLng');
+    const date = searchParams.get('date') || new Date(2025, 10, 20).toISOString();
+    const isExchangeMode = searchParams.get('exchange') === 'true';
 
     const [trips, setTrips] = useState<Trip[]>([]);
     const [loading, setLoading] = useState(true);
+    const [cartItems, setCartItems] = useState<Trip[]>([]);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [userLocation, setUserLocation] = useState<[number, number]>([33.9715, -6.8498]);
+    const [exchangingTicket, setExchangingTicket] = useState<any>(null);
+    const [showConfirmExchange, setShowConfirmExchange] = useState(false);
+    const [selectedExchangeTrip, setSelectedExchangeTrip] = useState<Trip | null>(null);
+
+    const cartTotal = cartItems.reduce((sum, item) => sum + item.price, 0);
 
     useEffect(() => {
-        async function fetchData() {
-            // In a real app, we would filter by start/end location
-            // For this mock, we'll fetch all trips and lines and join them
-            try {
-                // We need to expose these via server actions or API
-                // Since we only have loginAction, let's create a new action to fetch data
-                // For now, I'll assume I can add a fetchTripsAction to lib/actions.ts
-                // But since I can't edit it right now without a new tool call, 
-                // I will mock the data fetching here for the prototype if actions aren't ready
-                // Wait, I can edit lib/actions.ts. I should do that.
-                // But for this step, I'll just use the mock data directly if I was server side,
-                // but I'm client side.
-                // Let's assume I'll add the action in the next step or use a hardcoded mock for now
-                // to keep the UI working while I fix the backend connection.
-
-                // Actually, I'll just hardcode some data for the visual prototype 
-                // and then connect it properly if time permits, or better yet,
-                // I'll use the `getTrips` and `getLines` if I import them from a server action.
-                // I haven't created those actions yet.
-
-                // Let's mock it for now to ensure UI renders
-                const mockTrips = [
-                    {
-                        id: "T1",
-                        lineId: "L1",
-                        startTime: "2023-10-27T08:00:00",
-                        endTime: "2023-10-27T09:00:00",
-                        delay: 0,
-                        line: { id: "L1", number: "101", name: "Downtown - Airport" }
-                    },
-                    {
-                        id: "T2",
-                        lineId: "L2",
-                        startTime: "2023-10-27T10:00:00",
-                        endTime: "2023-10-27T11:00:00",
-                        delay: 5,
-                        line: { id: "L2", number: "102", name: "University - Mall" }
-                    }
-                ];
-                setTrips(mockTrips);
-            } catch (error) {
-                console.error("Failed to fetch trips", error);
-            } finally {
-                setLoading(false);
+        // Check if we're in exchange mode
+        if (isExchangeMode) {
+            const storedTicket = localStorage.getItem('exchangingTicket');
+            if (storedTicket) {
+                setExchangingTicket(JSON.parse(storedTicket));
             }
         }
-        fetchData();
+    }, [isExchangeMode]);
+
+    const router = useRouter();
+
+    useEffect(() => {
+        // Get user's current location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation([position.coords.latitude, position.coords.longitude]);
+                },
+                () => {
+                    // Fallback to ENSIAS if geolocation fails
+                    setUserLocation([33.9715, -6.8498]);
+                }
+            );
+        }
     }, []);
 
-    return (
-        <div className="min-h-screen bg-slate-50">
-            <Navbar />
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900">Trip Results</h1>
-                        <p className="text-slate-500 mt-1">
-                            Showing routes from <span className="font-semibold text-slate-900">{start || 'Origin'}</span> to <span className="font-semibold text-slate-900">{end || 'Destination'}</span>
-                        </p>
-                    </div>
-                    <Button variant="outline" className="flex items-center gap-2">
-                        <Filter className="h-4 w-4" />
-                        Filter Results
-                    </Button>
-                </div>
+    useEffect(() => {
+        setLoading(true);
+        setTimeout(() => {
+            const fromCoords: [number, number] | undefined = fromLat && fromLng ? [parseFloat(fromLat), parseFloat(fromLng)] : undefined;
+            const toCoords: [number, number] | undefined = toLat && toLng ? [parseFloat(toLat), parseFloat(toLng)] : undefined;
 
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {loading ? (
-                        <div className="col-span-full text-center py-12 text-slate-500">Loading trips...</div>
-                    ) : trips.map((trip) => (
-                        <Card key={trip.id} className="hover:shadow-lg transition-shadow border-slate-200 overflow-hidden group">
-                            <div className="h-2 bg-blue-600 w-full"></div>
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-2">
-                                        <Badge className="bg-blue-600 hover:bg-blue-700 text-lg px-3 py-1">
-                                            {trip.line?.number}
-                                        </Badge>
-                                        <span className="text-sm font-medium text-slate-500 truncate max-w-[150px]">
-                                            {trip.line?.name}
-                                        </span>
-                                    </div>
-                                    {trip.delay > 0 ? (
-                                        <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">
-                                            +{trip.delay} min delay
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">
-                                            On Time
-                                        </Badge>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="py-4">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-slate-900">
-                                            {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            const mockTrips = generateMockTrips(from, to, userLocation, fromCoords, toCoords);
+            setTrips(mockTrips);
+            setLoading(false);
+        }, 300);
+    }, [from, to, userLocation, fromLat, fromLng, toLat, toLng]);
+
+    const addToCart = (trip: Trip) => {
+        // If in exchange mode, show confirmation dialog before performing the exchange
+        if (isExchangeMode && exchangingTicket) {
+            setSelectedExchangeTrip(trip);
+            setShowConfirmExchange(true);
+            return;
+        }
+
+        // Normal booking flow
+        if (!cartItems.find(item => item.id === trip.id)) {
+            setCartItems([...cartItems, trip]);
+        }
+    };
+
+    const confirmExchangeNow = (trip: Trip | null) => {
+        if (!trip || !exchangingTicket) return;
+
+        // Perform exchange: update stored tickets and set success flag, then redirect
+        const storedTickets = localStorage.getItem('userTickets');
+        if (!storedTickets) {
+            setShowConfirmExchange(false);
+            return;
+        }
+
+        const allTickets = JSON.parse(storedTickets);
+
+        const updatedTickets = allTickets.map((ticket: any) => {
+            if (ticket.id === exchangingTicket.id) {
+                return {
+                    ...ticket,
+                    operator: trip.operator,
+                    lineNumber: trip.lineNumber,
+                    departureStation: trip.departureStation,
+                    arrivalStation: trip.arrivalStation,
+                    departureTime: trip.departureTime,
+                    arrivalTime: trip.arrivalTime,
+                    date: date,
+                    price: trip.price,
+                    exchangesRemaining: ticket.exchangesRemaining - 1,
+                    status: 'exchanged' as const,
+                    qrCodeUrl: ticket.qrCodeUrl
+                };
+            }
+            return ticket;
+        });
+
+        // Store exchange success info for tickets page to show banner
+        const originalTicket = JSON.parse(storedTickets).find((t: any) => t.id === exchangingTicket.id);
+        if (originalTicket) {
+            const remainingAfter = originalTicket.exchangesRemaining - 1;
+            try {
+                localStorage.setItem('exchangeSuccess', JSON.stringify({
+                    message: 'Ticket exchanged successfully',
+                    remaining: remainingAfter,
+                    newTime: trip.departureTime
+                }));
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        localStorage.setItem('userTickets', JSON.stringify(updatedTickets));
+        localStorage.removeItem('exchangingTicket');
+        setExchangingTicket(null);
+        setShowConfirmExchange(false);
+
+        // Redirect immediately to tickets page where the banner will show
+        router.push('/tickets');
+    };
+
+    const removeFromCart = (tripId: string) => {
+        setCartItems(cartItems.filter(item => item.id !== tripId));
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+    };
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+            <Navbar />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Main Content - Trip Results */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* Header */}
+                        <div className="mb-6">
+                            {isExchangeMode && exchangingTicket && (
+                                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <RefreshCw className="h-6 w-6 text-orange-600" />
+                                        <div>
+                                            <h3 className="font-bold text-orange-900">Exchanging Ticket</h3>
+                                            <p className="text-sm text-orange-700">
+                                                Select a new trip to exchange your ticket. You have <strong>{exchangingTicket.exchangesRemaining} exchanges</strong> remaining.
+                                            </p>
+                                            <p className="text-xs text-orange-600 mt-1">
+                                                Original: {exchangingTicket.departureStation} → {exchangingTicket.arrivalStation}
+                                            </p>
                                         </div>
-                                        <div className="text-xs text-slate-500 mt-1">Departure</div>
                                     </div>
-                                    <div className="flex-1 px-4 flex flex-col items-center">
-                                        <div className="w-full h-px bg-slate-300 relative">
-                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-400"></div>
-                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-400"></div>
-                                            <div className="absolute left-1/2 top-1/2 -translate-y-1/2 bg-slate-50 px-2">
-                                                <Bus className="h-4 w-4 text-slate-400" />
+                                </div>
+                            )}
+                            <div className="flex items-center gap-2 text-blue-900 mb-2">
+                                <span className="text-lg font-bold">Outbound</span>
+                                <span className="text-slate-500 font-medium">{formatDate(date)}</span>
+                            </div>
+
+                            {loading ? (
+                                <div className="text-center py-12">
+                                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                                    <p className="text-slate-500 mt-4">Finding best routes...</p>
+                                </div>
+                            ) : (
+                                trips.map((trip) => (
+                                    <TripResultCard
+                                        key={trip.id}
+                                        trip={trip}
+                                        isInCart={!!cartItems.find(item => item.id === trip.id)}
+                                        isExchangeMode={isExchangeMode}
+                                        onAddToCart={addToCart}
+                                        userLocation={userLocation}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Sidebar - Cart */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-blue-900 text-white rounded-xl p-6 sticky top-24 shadow-lg">
+                            <h2 className="text-xl font-bold mb-6">My Cart</h2>
+
+                            {cartItems.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <div className="relative mb-6 opacity-50">
+                                        <Bus className="h-16 w-16 text-blue-200" />
+                                    </div>
+                                    <p className="text-lg font-medium text-blue-100">Your cart is empty</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {cartItems.map((item) => (
+                                        <div key={item.id} className="bg-blue-800 rounded-lg p-4 relative group">
+                                            <button
+                                                onClick={() => removeFromCart(item.id)}
+                                                className="absolute top-3 right-3 h-6 w-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                                title="Remove from cart"
+                                            >
+                                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+
+                                            <div className="pr-8">
+                                                <div className="flex items-center gap-2 mb-2 text-xs text-blue-200">
+                                                    <Bus className="h-3 w-3" />
+                                                    <span>Outbound • {item.departureTime}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-base font-bold mb-2">
+                                                    <span>{item.departureStation}</span>
+                                                    <svg className="h-3 w-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                    <span>{item.arrivalStation}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-green-400">{item.price} DH</div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-xs text-slate-400 mt-2">
-                                            {Math.round((new Date(trip.endTime).getTime() - new Date(trip.startTime).getTime()) / 60000)} min
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-slate-900">
-                                            {new Date(trip.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-1">Arrival</div>
-                                    </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="border-t border-blue-700 pt-6 mt-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <span className="text-sm text-blue-200">Total amount:</span>
+                                    <span className="text-2xl font-bold">{cartTotal} DH</span>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <div className="flex items-center text-sm text-slate-600">
-                                        <MapPin className="h-4 w-4 mr-2 text-blue-500" />
-                                        <span className="truncate">Start: {start || 'Central Station'}</span>
-                                    </div>
-                                    <div className="flex items-center text-sm text-slate-600">
-                                        <MapPin className="h-4 w-4 mr-2 text-red-500" />
-                                        <span className="truncate">End: {end || 'Airport'}</span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                            <CardFooter className="bg-slate-50 border-t border-slate-100 pt-4">
-                                <Link href={`/trips/${trip.id}`} className="w-full">
-                                    <Button className="w-full bg-slate-900 hover:bg-slate-800 group-hover:bg-blue-600 transition-colors">
-                                        View Details
-                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                {cartItems.length > 0 && (
+                                    <Button
+                                        onClick={() => setShowPaymentModal(true)}
+                                        className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all"
+                                    >
+                                        Continue to Payment
                                     </Button>
-                                </Link>
-                            </CardFooter>
-                        </Card>
-                    ))}
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            {/* Payment Modal */}
+            <PaymentModal
+                isOpen={showPaymentModal}
+                onClose={() => {
+                    setShowPaymentModal(false);
+                    setCartItems([]);
+                }}
+                cartItems={cartItems}
+                total={cartTotal}
+                travelDate={date}
+            />
+
+            {/* Confirm Exchange Dialog */}
+            <Dialog open={showConfirmExchange} onOpenChange={(open) => { if (!open) setShowConfirmExchange(false); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Confirm Exchange</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to exchange this ticket for the selected trip? This will consume one exchange and update your ticket's time.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="mt-4">
+                        <div className="flex gap-3 justify-end">
+                            <Button variant="outline" onClick={() => { setShowConfirmExchange(false); setSelectedExchangeTrip(null); }}>Cancel</Button>
+                            <Button onClick={() => confirmExchangeNow(selectedExchangeTrip)} className="bg-orange-600 hover:bg-orange-700 text-white">Confirm Exchange</Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -1,0 +1,47 @@
+SERVICE: Trip Service
+DESCRIPTION: Manages dynamic operations: Scheduled trips, Real-time status, Availability, and Incidents.
+
+OWNED DATA (SCHEMAS):
+- Trips
+- TripStations
+- Incidents
+
+API ENDPOINTS:
+GET /api/v1/routes/search
+    - The core "Plan my Journey" endpoint.
+    - Finds Lines from Route-Service and checks 'Trips' for schedules/availability.
+POST /api/v1/routes/validate
+    - Checks if a specific A-to-B trip is possible.
+    
+GET /api/v1/trips/{tripId}
+    - Trip details.
+GET /api/v1/trips/{tripId}/status
+    - Real-time status (Delayed, Arrived).
+GET /api/v1/trips/{tripId}/availability
+    - Seat counts.
+
+GET /api/v1/driver/trips/current
+    - The trip currently assigned to the logged-in driver.
+GET /api/v1/driver/trips/history
+    - Past trips for the driver.
+POST /api/v1/driver/trips/{tripId}/status
+    - Driver updates status (e.g., "Boarding").
+POST /api/v1/driver/trips/{tripId}/arrival
+    - Driver marks arrival at station.
+GET /api/v1/driver/trips/{tripId}/navigation
+    - Directions for the driver.
+
+GET /api/v1/admin/incidents
+    - List incidents.
+GET /api/v1/admin/incidents/{incidentId}
+PUT /api/v1/admin/incidents/{incidentId}
+POST /api/v1/driver/incidents
+    - Driver reports issue.
+GET /api/v1/driver/incidents
+
+GET /api/v1/public/routes/popular
+    - Aggregates most traveled routes.
+
+KAFKA EVENTS:
+- Consumes: `booking.created` (To decrement available seats), `vehicle.location.updated` (From Vehicle Service to calculate delay).
+- Produces: `trip.started`, `trip.completed`, `trip.delayed`, `incident.reported`.

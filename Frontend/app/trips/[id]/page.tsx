@@ -1,194 +1,231 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { Bus, Calendar, Clock, MapPin, Footprints, ArrowLeft } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { calculateDistance } from '@/lib/distance';
+import rabatLocations from '@/data/rabat-locations.json';
 
-// Mock types
-type Trip = {
-    id: string;
-    lineId: string;
-    startTime: string;
-    endTime: string;
-    delay: number;
-    line?: {
-        id: string;
-        number: string;
-        name: string;
-        stations: string[];
-    };
-    price: number;
-};
+// Dynamically import TripMap
+const TripMap = dynamic(() => import('@/components/trip-map').then(mod => ({ default: mod.TripMap })), { ssr: false });
 
-export default function TripDetailsPage() {
-    const params = useParams();
+// Location coordinates mapping
+const locationCoordinates: Record<string, [number, number]> = {};
+rabatLocations.locations.forEach(loc => {
+    locationCoordinates[loc.name.toUpperCase()] = [loc.coordinates[0], loc.coordinates[1]];
+});
+
+export default function TripDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
-    const { user } = useAuth();
-    const [trip, setTrip] = useState<Trip | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [bookingStatus, setBookingStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+    const searchParams = useSearchParams();
+
+    // Unwrap the params Promise
+    const { id } = use(params);
+
+    // Parse trip details from URL params
+    const trip = {
+        id: id,
+        lineNumber: searchParams.get('line') || '',
+        operator: searchParams.get('operator') || '',
+        departureStation: searchParams.get('from') || '',
+        arrivalStation: searchParams.get('to') || '',
+        departureTime: searchParams.get('depTime') || '',
+        arrivalTime: searchParams.get('arrTime') || '',
+        duration: searchParams.get('duration') || '',
+        price: parseFloat(searchParams.get('price') || '0'),
+        services: searchParams.get('services')?.split(',') || [],
+        walkingDepDist: searchParams.get('walkDepDist'),
+        walkingDepDur: searchParams.get('walkDepDur'),
+        walkingArrDist: searchParams.get('walkArrDist'),
+        walkingArrDur: searchParams.get('walkArrDur'),
+    };
+
+    const [userLocation, setUserLocation] = useState<[number, number]>([33.9715, -6.8498]);
+    const [startCoords, setStartCoords] = useState<[number, number] | null>(null);
+    const [endCoords, setEndCoords] = useState<[number, number] | null>(null);
 
     useEffect(() => {
-        // Mock fetch trip details
-        const mockTrip = {
-            id: params.id as string,
-            lineId: "L1",
-            startTime: "2023-10-27T08:00:00",
-            endTime: "2023-10-27T09:00:00",
-            delay: 0,
-            line: {
-                id: "L1",
-                number: "101",
-                name: "Downtown - Airport",
-                stations: ["Central Station", "Market Square", "City Park", "Airport Terminal 1"]
-            },
-            price: 2.50
+        // Get user location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
+                () => setUserLocation([33.9715, -6.8498])
+            );
+        }
+
+        // Resolve coordinates
+        const resolveCoords = async (name: string) => {
+            // Try local data first
+            const local = locationCoordinates[name.toUpperCase()];
+            if (local) return local;
+
+            // Fallback to geocoding
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name + ' Rabat')}&limit=1`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    return [parseFloat(data[0].lat), parseFloat(data[0].lon)] as [number, number];
+                }
+            } catch (e) {
+                console.error('Geocoding failed', e);
+            }
+            return null;
         };
 
-        setTimeout(() => {
-            setTrip(mockTrip);
-            setLoading(false);
-        }, 500);
-    }, [params.id]);
+        if (trip.departureStation) {
+            resolveCoords(trip.departureStation).then(coords => {
+                if (coords) setStartCoords(coords);
+            });
+        }
+        if (trip.arrivalStation) {
+            resolveCoords(trip.arrivalStation).then(coords => {
+                if (coords) setEndCoords(coords);
+            });
+        }
+    }, [trip.departureStation, trip.arrivalStation]);
 
-    const handleBuyTicket = () => {
-        setBookingStatus('processing');
-        // Mock API call to buy ticket
-        setTimeout(() => {
-            setBookingStatus('success');
-            // In real app, we would redirect to ticket details or show success message
-        }, 1500);
+    const handleBook = () => {
+        // Redirect to checkout page with trip details
+        const params = new URLSearchParams({
+            id: trip.id,
+            line: trip.lineNumber,
+            operator: trip.operator,
+            from: trip.departureStation,
+            to: trip.arrivalStation,
+            depTime: trip.departureTime,
+            arrTime: trip.arrivalTime,
+            duration: trip.duration,
+            price: trip.price.toString(),
+            date: searchParams.get('date') || new Date().toISOString().split('T')[0],
+        });
+        router.push(`/checkout?${params.toString()}`);
     };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-slate-50">
-                <Navbar />
-                <div className="flex justify-center items-center h-[calc(100vh-64px)]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-            </div>
-        );
-    }
-
-    if (!trip) return <div>Trip not found</div>;
 
     return (
         <div className="min-h-screen bg-slate-50">
             <Navbar />
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <Link href="/results" className="inline-flex items-center text-sm text-slate-500 hover:text-blue-600 mb-6">
-                    <ArrowLeft className="h-4 w-4 mr-1" />
+
+            <div className="max-w-4xl mx-auto px-4 py-8">
+                <Button variant="ghost" onClick={() => router.back()} className="mb-6 pl-0 hover:pl-2 transition-all">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to Results
-                </Link>
+                </Button>
 
-                {bookingStatus === 'success' ? (
-                    <Card className="border-green-200 bg-green-50">
-                        <CardContent className="pt-6 text-center">
-                            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                                <CheckCircle className="h-10 w-10 text-green-600" />
-                            </div>
-                            <h2 className="text-2xl font-bold text-green-900 mb-2">Ticket Purchased Successfully!</h2>
-                            <p className="text-green-700 mb-6">Your ticket has been added to your account.</p>
-                            <div className="flex justify-center gap-4">
-                                <Link href="/tickets">
-                                    <Button className="bg-green-600 hover:bg-green-700 text-white">View My Tickets</Button>
-                                </Link>
-                                <Link href="/search">
-                                    <Button variant="outline" className="border-green-200 text-green-700 hover:bg-green-100">Book Another Trip</Button>
-                                </Link>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <div className="grid gap-6">
-                        <Card className="overflow-hidden border-slate-200 shadow-sm">
-                            <div className="bg-slate-900 p-6 text-white">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <Badge className="bg-blue-500 text-white hover:bg-blue-600 text-lg px-3 py-1">
-                                                Line {trip.line?.number}
-                                            </Badge>
-                                            <h1 className="text-xl font-bold">{trip.line?.name}</h1>
-                                        </div>
-                                        <div className="flex items-center text-slate-300 text-sm">
-                                            <Calendar className="h-4 w-4 mr-2" />
-                                            {new Date(trip.startTime).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-3xl font-bold">${trip.price.toFixed(2)}</div>
-                                        <div className="text-slate-400 text-sm">per person</div>
-                                    </div>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900">Trip Details</h1>
+                                <div className="flex items-center gap-2 mt-2 text-slate-600">
+                                    <Bus className="h-4 w-4" />
+                                    <span>{trip.operator}</span>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="font-medium">Line {trip.lineNumber}</span>
                                 </div>
                             </div>
-
-                            <CardContent className="p-6">
-                                <div className="relative pl-8 border-l-2 border-slate-200 space-y-8 my-4">
-                                    {trip.line?.stations.map((station, index) => {
-                                        const isStart = index === 0;
-                                        const isEnd = index === trip.line!.stations.length - 1;
-
-                                        return (
-                                            <div key={station} className="relative">
-                                                <div className={`absolute -left-[41px] top-0 w-5 h-5 rounded-full border-4 border-white ${isStart ? 'bg-blue-500' : isEnd ? 'bg-red-500' : 'bg-slate-300'} shadow-sm`}></div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className={`font-medium ${isStart || isEnd ? 'text-slate-900 text-lg' : 'text-slate-500'}`}>
-                                                        {station}
-                                                    </span>
-                                                    {(isStart || isEnd) && (
-                                                        <span className="text-sm font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                                            {isStart ? new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
-                                                                isEnd ? new Date(trip.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="mt-8 bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start gap-3">
-                                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                                    <div>
-                                        <h4 className="font-semibold text-blue-900 text-sm">Trip Information</h4>
-                                        <p className="text-blue-700 text-sm mt-1">
-                                            This trip is operated by TransitMA. Please arrive at the station 5 minutes before departure.
-                                            Digital tickets are accepted on all buses.
-                                        </p>
-                                    </div>
-                                </div>
-                            </CardContent>
-
-                            <CardFooter className="bg-slate-50 p-6 border-t border-slate-100 flex justify-between items-center">
-                                <div className="text-sm text-slate-500">
-                                    Total for 1 passenger: <span className="font-bold text-slate-900">${trip.price.toFixed(2)}</span>
-                                </div>
-                                <Button
-                                    onClick={handleBuyTicket}
-                                    disabled={bookingStatus === 'processing'}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12 text-lg shadow-lg shadow-blue-200"
-                                >
-                                    {bookingStatus === 'processing' ? (
-                                        <>Processing...</>
-                                    ) : (
-                                        <>
-                                            <CreditCard className="mr-2 h-5 w-5" />
-                                            Buy Ticket
-                                        </>
-                                    )}
+                            <div className="text-right">
+                                <div className="text-3xl font-bold text-slate-900">{trip.price} <span className="text-sm font-normal text-slate-500">DH</span></div>
+                                <Button onClick={handleBook} className="mt-2 bg-blue-600 hover:bg-blue-700 text-white">
+                                    Book Ticket
                                 </Button>
-                            </CardFooter>
-                        </Card>
+                            </div>
+                        </div>
                     </div>
-                )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2">
+                        {/* Timeline */}
+                        <div className="p-8 border-r border-slate-100">
+                            <h2 className="font-semibold text-slate-900 mb-6">Itinerary</h2>
+                            <div className="relative pl-4 space-y-0">
+                                {/* Vertical Line */}
+                                <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-slate-200"></div>
+
+                                {/* Walking Departure */}
+                                {trip.walkingDepDist && (
+                                    <div className="relative flex items-start gap-4 pb-8">
+                                        <div className="z-10 h-6 w-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center flex-shrink-0 mt-1">
+                                            <Footprints className="h-3 w-3 text-slate-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-700 text-sm">Walk to station</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingDepDist}km • {trip.walkingDepDur} min</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Departure */}
+                                <div className="relative flex items-start gap-4 pb-8">
+                                    <div className="z-10 h-6 w-6 rounded-full bg-white border-4 border-blue-600 flex-shrink-0 mt-1"></div>
+                                    <div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-bold text-slate-900 text-lg">{trip.departureTime}</span>
+                                            <span className="font-medium text-slate-700">{trip.departureStation}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Ride Info */}
+                                <div className="relative flex items-center gap-4 pb-8">
+                                    <div className="z-10 h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <Clock className="h-3 w-3 text-blue-600" />
+                                    </div>
+                                    <div className="text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                                        <div className="font-medium">{trip.duration} Ride</div>
+                                        <div className="text-xs text-slate-500 mt-1 flex gap-2">
+                                            {trip.services.map(s => <span key={s}>{s}</span>)}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Arrival */}
+                                <div className="relative flex items-start gap-4 pb-8">
+                                    <div className="z-10 h-6 w-6 rounded-full bg-white border-4 border-slate-900 flex-shrink-0 mt-1"></div>
+                                    <div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-bold text-slate-900 text-lg">{trip.arrivalTime}</span>
+                                            <span className="font-medium text-slate-700">{trip.arrivalStation}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Walking Arrival */}
+                                {trip.walkingArrDist && (
+                                    <div className="relative flex items-start gap-4">
+                                        <div className="z-10 h-6 w-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center flex-shrink-0 mt-1">
+                                            <Footprints className="h-3 w-3 text-slate-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-700 text-sm">Walk to destination</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">{trip.walkingArrDist}km • {trip.walkingArrDur} min</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Map */}
+                        <div className="h-[500px] lg:h-auto bg-slate-100 relative">
+                            {startCoords && endCoords ? (
+                                <TripMap
+                                    userLocation={userLocation}
+                                    startStation={startCoords}
+                                    endStation={endCoords}
+                                    startName={trip.departureStation}
+                                    endName={trip.arrivalStation}
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-slate-400">
+                                    Loading Map...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -1,0 +1,19 @@
+SERVICE: Subscription Service
+DESCRIPTION: Manages long-term passes and subscription plans.
+
+OWNED DATA (SCHEMAS):
+- Subscriptions
+- SubscriptionPlans
+
+API ENDPOINTS:
+GET /api/v1/users/me/subscription
+    - Current status.
+GET /api/v1/subscriptions/plans
+    - List available tiers.
+POST /api/v1/subscriptions/change
+    - Upgrade/Downgrade.
+POST /api/v1/subscriptions/cancel
+
+KAFKA EVENTS:
+- Consumes: `payment.success` (If payment was for a subscription).
+- Produces: `subscription.updated`.
